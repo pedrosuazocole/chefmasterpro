@@ -1,0 +1,180 @@
+═══════════════════════════════════════════════════════════
+  🍽️  CHEF MASTER PRO - VERSION 1.5.4 PROFESSIONAL
+═══════════════════════════════════════════════════════════
+
+De la Compra a la Venta, Todo Bajo Control
+
+FECHA: Abril 2026
+VERSIÓN: 1.5.4 Professional Edition - COMPLETA
+
+═══════════════════════════════════════════════════════════
+TODAS LAS MEJORAS v1.5 IMPLEMENTADAS
+═══════════════════════════════════════════════════════════
+
+✅ v1.5.1: COMPRAS + KARDEX DETALLADO
+   • Campo unidad en cada producto de compra
+   • Campo proveedor en facturas
+   • Kardex automático de ENTRADAS (compras)
+   • Kardex automático de SALIDAS (producción)
+   • Vista completa de Kardex con filtros
+   • Búsqueda por producto y documento
+   • Exportación a Excel del Kardex
+
+✅ v1.5.2: RECETAS INTELIGENTES
+   • Alertas visuales ROJO/VERDE según margen
+   • Detección automática cambios de precio >5%
+   • Muestra costo promedio actualizado vs anterior
+   • Botón "Actualizar Costos" automático
+   • Sugerencia de precio para mantener margen
+   • Indicadores de utilidad en tiempo real
+   • Diferencia entre "Costo Unitario" y "Costo Promedio"
+
+✅ v1.5.3: EXPORTACIONES EXCEL/PDF
+   • Recetas → Excel (con formato y colores)
+   • Recetas → PDF (profesional con jsPDF)
+   • Inventario → Excel
+   • Kardex → Excel (9 columnas detalladas)
+   • Descarga directa desde navegador
+   • Botones integrados en cada vista
+
+✅ v1.5.4: MODIFICAR/ELIMINAR
+   • Historial de Compras: Eliminar registros
+   • Recetas: Editar precio de venta
+   • Recetas: Eliminar recetas completas
+   • Producto Terminado: Buscador en tiempo real
+   • Producto Terminado: Eliminar productos
+   • Auditoría completa de todos los cambios
+   • Confirmaciones de seguridad
+
+═══════════════════════════════════════════════════════════
+MÓDULOS DEL SISTEMA
+═══════════════════════════════════════════════════════════
+
+1. Dashboard
+2. Catálogo de Productos
+3. Inventario y Compras (con eliminar)
+4. Recetas (con alertas inteligentes + editar/eliminar)
+5. Producción
+6. Producto Terminado (con buscador + eliminar)
+7. Kardex Detallado ⭐ NUEVO
+8. Reportes y Análisis (con exportaciones)
+9. Gestión de Usuarios
+
+═══════════════════════════════════════════════════════════
+CARACTERÍSTICAS TÉCNICAS
+═══════════════════════════════════════════════════════════
+
+• Node.js + Express
+• EJS Templates
+• JSON Database
+• ExcelJS para exportaciones Excel
+• jsPDF + AutoTable para PDFs
+• Bcrypt para seguridad (hash de passwords)
+• Sistema de auditoría completo
+• Responsive Design 100%
+• Mobile Friendly
+
+═══════════════════════════════════════════════════════════
+FUNCIONALIDADES DESTACADAS
+═══════════════════════════════════════════════════════════
+
+🔴 ALERTAS INTELIGENTES
+   • Recetas en ROJO cuando margen < objetivo
+   • Recetas en VERDE cuando margen >= objetivo
+   • Detecta cambios de precio automáticamente
+   • Sugiere nuevo precio para mantener margen
+
+📋 KARDEX COMPLETO
+   • Trazabilidad total de movimientos
+   • Entradas automáticas desde compras
+   • Salidas automáticas desde producción
+   • Filtros y búsqueda avanzada
+   • Exportación profesional
+
+✏️ MODIFICAR/ELIMINAR
+   • Editar precios de venta en recetas
+   • Eliminar compras, recetas y productos
+   • Buscador en producto terminado
+   • Auditoría de todos los cambios
+
+📊 EXPORTACIONES
+   • Excel con formato profesional
+   • PDF con diseño limpio
+   • Múltiples reportes disponibles
+
+═══════════════════════════════════════════════════════════
+CREDENCIALES
+═══════════════════════════════════════════════════════════
+
+Usuario: admin
+Contraseña: admin123
+
+IMPORTANTE: Cambiar contraseña después del primer inicio
+
+═══════════════════════════════════════════════════════════
+INSTALACIÓN
+═══════════════════════════════════════════════════════════
+
+Windows:
+1. Doble click en INSTALL.bat
+2. Doble click en START.bat
+3. Abrir http://localhost:3000
+
+Linux/Mac:
+1. ./INSTALL.sh
+2. ./START.sh
+3. Abrir http://localhost:3000
+
+═══════════════════════════════════════════════════════════
+DOCUMENTACIÓN
+═══════════════════════════════════════════════════════════
+
+• README.md - Inicio rápido
+• MANUAL_V1.5.md - Guía completa de funcionalidades
+• MANUAL_MODIFICAR_ELIMINAR.md - Guía de edición/eliminación
+• INSTALACION.md - Instalación detallada
+
+═══════════════════════════════════════════════════════════
+ESTADÍSTICAS DEL SISTEMA
+═══════════════════════════════════════════════════════════
+
+• 9 Módulos Principales
+• 11 Vistas EJS
+• 25+ Rutas API
+• 7 Scripts JavaScript
+• 4 Tipos de Exportación
+• 3 Niveles de Usuario (Admin, Chef, Ayudante)
+• 100% Responsive
+• Login Seguro con Bcrypt
+
+═══════════════════════════════════════════════════════════
+MEJORAS IMPLEMENTADAS EN ESTA VERSIÓN
+═══════════════════════════════════════════════════════════
+
+v1.5.4 (Última):
+✅ Editar precio de venta en recetas
+✅ Eliminar compras del historial
+✅ Eliminar recetas
+✅ Buscador en producto terminado
+✅ Eliminar productos terminados
+✅ Auditoría completa
+
+v1.5.3:
+✅ Exportaciones Excel/PDF en múltiples módulos
+
+v1.5.2:
+✅ Recetas inteligentes con alertas visuales
+
+v1.5.1:
+✅ Kardex detallado con trazabilidad completa
+
+═══════════════════════════════════════════════════════════
+
+Desarrollado para:
+Instituto Tecnológico Santo Tomás
+Siguatepeque, Honduras 🇭🇳
+
+CHEF MASTER PRO v1.5.4 Professional Edition
+VERSIÓN COMPLETA - TODAS LAS MEJORAS IMPLEMENTADAS ✅
+
+═══════════════════════════════════════════════════════════

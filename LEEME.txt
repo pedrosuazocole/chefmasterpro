@@ -1,0 +1,79 @@
+╔════════════════════════════════════════════════════════════╗
+║                                                            ║
+║     🍳 SISTEMA DE CONTROL DE COCINA - NODE.JS 🍳          ║
+║                                                            ║
+║           Versión Profesional 2.0 - Abril 2026            ║
+║                                                            ║
+╚════════════════════════════════════════════════════════════╝
+
+✨ INSTALACIÓN RÁPIDA:
+
+1. Instalar Node.js desde: https://nodejs.org
+   (Descargar la versión LTS - Long Term Support)
+
+2. Abrir terminal en esta carpeta y ejecutar:
+   npm install
+
+3. Iniciar el sistema:
+   npm start
+
+4. Abrir navegador en: http://localhost:3000
+
+5. Ingresar con:
+   Usuario: admin
+   Contraseña: admin123
+
+
+📚 DOCUMENTACIÓN INCLUIDA:
+
+- README.md           → Documentación técnica completa
+- INSTALACION.md      → Guía paso a paso de instalación
+- MANUAL_USUARIO.md   → Manual de uso del sistema
+- VERSION.txt         → Información de la versión
+
+
+🚀 INICIO RÁPIDO (WINDOWS):
+
+  1. Doble clic en: INSTALL.bat
+  2. Esperar a que termine
+  3. Doble clic en: START.bat
+
+
+🚀 INICIO RÁPIDO (MAC/LINUX):
+
+  1. Abrir terminal aquí
+  2. Ejecutar: ./INSTALL.sh
+  3. Ejecutar: ./START.sh
+
+
+⚙️ CARACTERÍSTICAS DEL SISTEMA:
+
+✅ Control de inventario automatizado
+✅ Recetas con cálculo de costos y márgenes
+✅ Producción con descuento automático de stock
+✅ Reportes y análisis de rentabilidad
+✅ Gestión de usuarios con roles
+✅ Auditoría completa de operaciones
+✅ Interfaz moderna y responsive
+
+
+💾 BASE DE DATOS:
+
+El sistema usa archivos JSON (carpeta /data)
+- Fácil de respaldar
+- No requiere instalación adicional
+- Totalmente portable
+
+
+🆘 SOPORTE:
+
+Si tenés problemas:
+1. Revisá INSTALACION.md
+2. Verificá que Node.js esté instalado: node --version
+3. Contactá al departamento de Informática
+
+
+🇭🇳 Desarrollado con ❤️ para Honduras
+   Instituto Tecnológico Santo Tomás
+
+═══════════════════════════════════════════════════════════

@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reportes - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📈 Reportes y Análisis</h1>
+            <p class="subtitle">Información clave para tomar decisiones</p>
+        </header>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-icon">💰</div>
+                <div class="metric-content">
+                    <h3>Valor Total Inventario</h3>
+                    <p class="metric-value">L. <%= totalInventario.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') %></p>
+                </div>
+            </div>
+            
+            <div class="metric-card <%= stockBajo.length > 0 ? 'alert-card' : '' %>">
+                <div class="metric-icon">⚠️</div>
+                <div class="metric-content">
+                    <h3>Productos con Stock Bajo</h3>
+                    <p class="metric-value"><%= stockBajo.length %></p>
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-icon">🍽️</div>
+                <div class="metric-content">
+                    <h3>Recetas Activas</h3>
+                    <p class="metric-value"><%= recetas.length %></p>
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-icon">📊</div>
+                <div class="metric-content">
+                    <h3>Producciones Total</h3>
+                    <p class="metric-value"><%= produccion.length %></p>
+                </div>
+            </div>
+        </div>
+        
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin-bottom: 1.5rem;">
+            <div class="card">
+                <div class="card-header">
+                    <h3>⚠️ Alertas de Stock Bajo</h3>
+                </div>
+                <div class="card-body">
+                    <% if (stockBajo.length > 0) { %>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Ingrediente</th>
+                                    <th>Stock</th>
+                                    <th>Mínimo</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% stockBajo.forEach(item => { %>
+                                <tr>
+                                    <td><strong><%= item.ingrediente %></strong></td>
+                                    <td style="color: #ff4b4b; font-weight: bold;"><%= item.stock.toFixed(2) %> <%= item.unidad %></td>
+                                    <td><%= item.stockMinimo %></td>
+                                </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    <% } else { %>
+                        <p class="text-center text-muted" style="padding: 2rem;">
+                            ✅ Todos los productos tienen stock suficiente
+                        </p>
+                    <% } %>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3>💰 Top 5 Recetas Rentables</h3>
+                </div>
+                <div class="card-body">
+                    <% if (topRecetas.length > 0) { %>
+                        <% topRecetas.forEach((r, index) => { %>
+                            <div style="margin-bottom: 1rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);">
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div style="font-size: 1.5rem; font-weight: bold; color: var(--primary);">
+                                            #<%= index + 1 %>
+                                        </div>
+                                        <div style="font-weight: 600;"><%= r.plato %></div>
+                                        <div style="font-size: 0.85rem; color: #666;">
+                                            Margen: <%= (r.margenUtilidad * 100).toFixed(1) %>%
+                                        </div>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 1.25rem; font-weight: bold; color: #21c354;">
+                                            L. <%= r.valorUtilidad.toFixed(2) %>
+                                        </div>
+                                        <div style="font-size: 0.85rem; color: #666;">
+                                            utilidad/plato
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <% }); %>
+                    <% } else { %>
+                        <p class="text-center text-muted" style="padding: 2rem;">
+                            No hay recetas creadas aún
+                        </p>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>📦 Inventario Completo</h3>
+                <button class="btn btn-sm" onclick="exportarExcel('inventario', 'inventario')" 
+                        style="background: #21c354; color: white;">
+                    📊 Exportar Excel
+                </button>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Código</th>
+                            <th>Ingrediente</th>
+                            <th>Stock</th>
+                            <th>Unidad</th>
+                            <th>Costo Unit.</th>
+                            <th>Valor Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% inventario.forEach(item => { 
+                            const valorTotal = item.stock * item.costoUnitario;
+                        %>
+                        <tr>
+                            <td><%= item.codigo %></td>
+                            <td><strong><%= item.ingrediente %></strong></td>
+                            <td><%= item.stock.toFixed(2) %></td>
+                            <td><%= item.unidad %></td>
+                            <td>L. <%= item.costoUnitario.toFixed(2) %></td>
+                            <td><strong>L. <%= valorTotal.toFixed(2) %></strong></td>
+                        </tr>
+                        <% }); %>
+                    </tbody>
+                    <tfoot>
+                        <tr style="background: var(--light); font-weight: bold;">
+                            <td colspan="5" style="text-align: right;">TOTAL INVENTARIO:</td>
+                            <td>L. <%= totalInventario.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') %></td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+        
+        <% if (recetas.length > 0) { %>
+        <div class="card">
+            <div class="card-header">
+                <h3>📊 Detalle de Costeo por Receta</h3>
+            </div>
+            <div class="card-body">
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Plato</th>
+                            <th>Costo</th>
+                            <th>Precio Venta</th>
+                            <th>Utilidad</th>
+                            <th>Margen %</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <% recetas.forEach(r => { %>
+                        <tr>
+                            <td><strong><%= r.plato %></strong></td>
+                            <td>L. <%= r.costoTotalPlato.toFixed(2) %></td>
+                            <td>L. <%= r.precioVenta.toFixed(2) %></td>
+                            <td style="color: #21c354; font-weight: bold;">L. <%= r.valorUtilidad.toFixed(2) %></td>
+                            <td><%= (r.margenUtilidad * 100).toFixed(1) %>%</td>
+                        </tr>
+                        <% }); %>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <% } %>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/exportar.js"></script>
+</body>
+</html>

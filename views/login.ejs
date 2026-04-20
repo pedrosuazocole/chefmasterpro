@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iniciar Sesión - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body class="login-page">
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <h1>🍳 Sistema de Cocina</h1>
+                <p>Control Profesional de Inventario y Producción</p>
+            </div>
+            
+            <% if (error) { %>
+            <div class="alert alert-error">
+                ⚠️ <%= error %>
+            </div>
+            <% } %>
+            
+            <form method="POST" action="/login" class="login-form">
+                <div class="form-group">
+                    <label for="username">Usuario</label>
+                    <input 
+                        type="text" 
+                        id="username" 
+                        name="username" 
+                        required 
+                        autofocus
+                        placeholder="Ingresá tu usuario"
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="password">Contraseña</label>
+                    <input 
+                        type="password" 
+                        id="password" 
+                        name="password" 
+                        required
+                        placeholder="Ingresá tu contraseña"
+                    >
+                </div>
+                
+                <button type="submit" class="btn btn-primary btn-block">
+                    Iniciar Sesión
+                </button>
+            </form>
+            
+            <div class="login-footer">
+                <p class="text-muted">
+                    Sistema desarrollado para control de cocina<br>
+                    Honduras 🇭🇳 • <%= new Date().getFullYear() %>
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

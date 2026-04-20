@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kardex - Chef Master Pro</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📋 Kardex Detallado</h1>
+            <p class="subtitle">Control de entradas y salidas por producto</p>
+        </header>
+        
+        <div class="card">
+            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3>Filtrar por Producto</h3>
+                <button class="btn btn-sm" onclick="exportarExcel('kardex', 'kardex')" 
+                        style="background: #21c354; color: white;">
+                    📊 Exportar Excel
+                </button>
+            </div>
+            <div class="card-body">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Producto</label>
+                        <select id="productoKardex" onchange="filtrarKardex()" class="form-control">
+                            <option value="">📦 Todos los productos</option>
+                            <% inventario.forEach(i => { %>
+                                <option value="<%= i.ingrediente %>"><%= i.ingrediente %></option>
+                            <% }); %>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Buscar</label>
+                        <input type="text" id="buscarKardex" placeholder="Buscar por documento o producto..." 
+                               onkeyup="buscarEnKardex()" class="form-control">
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h3>Movimientos de Kardex</h3>
+            </div>
+            <div class="card-body">
+                <div class="table-container">
+                    <table class="table" id="tablaKardex">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>Producto</th>
+                                <th>Tipo</th>
+                                <th>Documento</th>
+                                <th>Entrada</th>
+                                <th>Salida</th>
+                                <th>Costo Unit.</th>
+                                <th>Saldo</th>
+                                <th>Valor</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kardexBody">
+                            <% if (kardex && kardex.length > 0) { %>
+                                <% kardex.slice(-100).reverse().forEach(k => { %>
+                                <tr data-producto="<%= k.producto %>" data-documento="<%= k.documento %>">
+                                    <td><%= new Date(k.fecha).toLocaleString('es-HN') %></td>
+                                    <td><strong><%= k.producto %></strong></td>
+                                    <td>
+                                        <span class="badge" style="background: <%= k.tipo === 'ENTRADA' ? '#21c354' : '#ff4b4b' %>; color: white; padding: 0.35rem 0.75rem; border-radius: 12px;">
+                                            <%= k.tipo === 'ENTRADA' ? '📥' : '📤' %> <%= k.tipo %>
+                                        </span>
+                                    </td>
+                                    <td><code><%= k.documento %></code></td>
+                                    <td style="color: #21c354; font-weight: bold;">
+                                        <%= k.tipo === 'ENTRADA' ? parseFloat(k.cantidad).toFixed(2) : '-' %>
+                                    </td>
+                                    <td style="color: #ff4b4b; font-weight: bold;">
+                                        <%= k.tipo === 'SALIDA' ? parseFloat(k.cantidad).toFixed(2) : '-' %>
+                                    </td>
+                                    <td>L. <%= parseFloat(k.costoUnitario).toFixed(2) %></td>
+                                    <td><strong><%= parseFloat(k.stockNuevo).toFixed(2) %></strong></td>
+                                    <td><strong>L. <%= parseFloat(k.valorTotal).toFixed(2) %></strong></td>
+                                    <td><small><%= k.observaciones %></small></td>
+                                </tr>
+                                <% }); %>
+                            <% } else { %>
+                                <tr>
+                                    <td colspan="10" class="text-center text-muted">
+                                        No hay movimientos registrados en el Kardex
+                                    </td>
+                                </tr>
+                            <% } %>
+                        </tbody>
+                    </table>
+                </div>
+                <% if (kardex && kardex.length > 0) { %>
+                    <p class="text-muted" style="margin-top: 1rem; text-align: center;">
+                        Mostrando últimos 100 movimientos
+                    </p>
+                <% } %>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/exportar.js"></script>
+    <script>
+        function filtrarKardex() {
+            const producto = document.getElementById('productoKardex').value.toLowerCase();
+            const filas = document.querySelectorAll('#kardexBody tr');
+            
+            filas.forEach(fila => {
+                const productoFila = fila.dataset.producto ? fila.dataset.producto.toLowerCase() : '';
+                
+                if (producto === '' || productoFila.includes(producto)) {
+                    fila.style.display = '';
+                } else {
+                    fila.style.display = 'none';
+                }
+            });
+        }
+        
+        function buscarEnKardex() {
+            const busqueda = document.getElementById('buscarKardex').value.toLowerCase();
+            const filas = document.querySelectorAll('#kardexBody tr');
+            
+            filas.forEach(fila => {
+                const texto = fila.textContent.toLowerCase();
+                
+                if (busqueda === '' || texto.includes(busqueda)) {
+                    fila.style.display = '';
+                } else {
+                    fila.style.display = 'none';
+                }
+            });
+        }
+    </script>
+</body>
+</html>

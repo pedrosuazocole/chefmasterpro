@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📦 Inventario y Compras</h1>
+            <p class="subtitle">Registrá facturas y controlá el stock</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('registrar')">Registrar Compra</button>
+            <button class="tab-btn" onclick="switchTab('stock')">Ver Stock Actual</button>
+            <button class="tab-btn" onclick="switchTab('historial')">Historial</button>
+        </div>
+        
+        <!-- TAB REGISTRAR COMPRA -->
+        <div id="tab-registrar" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Nueva Factura de Compra</h3>
+                </div>
+                <div class="card-body">
+                    <form id="formCompra" onsubmit="registrarCompra(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>No. de Factura</label>
+                                <input type="text" id="noFactura" required placeholder="Ej: 001">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha de Factura</label>
+                                <input type="date" id="fechaFactura" required value="<%= new Date().toISOString().split('T')[0] %>">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Proveedor (opcional)</label>
+                            <input type="text" id="proveedor" placeholder="Nombre del proveedor">
+                        </div>
+                        
+                        <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border);">
+                        
+                        <h4 style="margin-bottom: 1rem;">Productos de la Factura</h4>
+                        
+                        <div id="productosCompra">
+                            <!-- Productos se agregan dinámicamente -->
+                        </div>
+                        
+                        <button type="button" class="btn btn-sm" onclick="agregarProductoCompra()" style="margin-bottom: 1rem;">
+                            ➕ Agregar Producto
+                        </button>
+                        
+                        <div style="margin-top: 2rem; padding-top: 1rem; border-top: 2px solid var(--border);">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <h3>Total Factura: <span id="totalFactura">L. 0.00</span></h3>
+                                <button type="submit" class="btn btn-primary">💾 Guardar Factura</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB STOCK ACTUAL -->
+        <div id="tab-stock" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Stock Actual de Inventario</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Código</th>
+                                <th>Ingrediente</th>
+                                <th>Stock</th>
+                                <th>Unidad</th>
+                                <th>Costo Unit.</th>
+                                <th>Valor Total</th>
+                                <th>Estado</th>
+                            </tr>
+                        </thead>
+                        <tbody id="tablaStock">
+                            <tr>
+                                <td colspan="7" class="text-center text-muted">Cargando...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB HISTORIAL -->
+        <div id="tab-historial" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Historial de Compras</h3>
+                </div>
+                <div class="card-body">
+                    <% if (historial && historial.length > 0) { %>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Factura</th>
+                                    <th>Código</th>
+                                    <th>Producto</th>
+                                    <th>Cantidad</th>
+                                    <th>Costo Unit.</th>
+                                    <th>Total</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% historial.slice(-30).reverse().forEach(h => { %>
+                                <tr>
+                                    <td><%= h.fechaFactura %></td>
+                                    <td><code><%= h.noFactura %></code></td>
+                                    <td><%= h.codigo %></td>
+                                    <td><%= h.producto %></td>
+                                    <td><%= h.cantidad %></td>
+                                    <td>L. <%= h.costoUnitario.toFixed(2) %></td>
+                                    <td><strong>L. <%= h.costoTotal.toFixed(2) %></strong></td>
+                                    <td>
+                                        <button class="btn btn-sm" onclick="editarCompra('<%= h.id %>')" 
+                                                style="background: #0068c9; color: white; margin-right: 0.25rem;" 
+                                                title="Editar">
+                                            ✏️
+                                        </button>
+                                        <button class="btn btn-sm" onclick="eliminarCompra('<%= h.id %>', '<%= h.noFactura %>')" 
+                                                style="background: #ff4b4b; color: white;" 
+                                                title="Eliminar">
+                                            🗑️
+                                        </button>
+                                    </td>
+                                </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    <% } else { %>
+                        <p class="text-center text-muted">No hay compras registradas aún</p>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/inventario.js"></script>
+</body>
+</html>
