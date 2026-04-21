@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Producto Terminado - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📦 Inventario de Producto Terminado</h1>
+            <p class="subtitle">Controlá el stock de platos listos para venta</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('stock')">Stock Actual</button>
+            <button class="tab-btn" onclick="switchTab('movimientos')">Movimientos</button>
+            <button class="tab-btn" onclick="switchTab('salida')">Registrar Salida</button>
+            <% if (isAdmin) { %>
+            <button class="tab-btn" onclick="switchTab('ajuste')">Ajuste de Inventario</button>
+            <% } %>
+        </div>
+        
+        <!-- TAB STOCK ACTUAL -->
+        <div id="tab-stock" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Platos en Stock</h3>
+                </div>
+                <div class="card-body">
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label>🔍 Buscar Plato</label>
+                        <input type="text" id="buscarProducto" placeholder="Buscar por nombre de plato..." 
+                               onkeyup="buscarProductoTerminado()" class="form-control">
+                    </div>
+                    
+                    <% if (productoTerminado && productoTerminado.length > 0) { %>
+                        <div class="table-container">
+                            <table class="table" id="tablaProductoTerminado">
+                                <thead>
+                                    <tr>
+                                        <th>Plato</th>
+                                        <th>Stock</th>
+                                        <th>Costo Unit.</th>
+                                        <th>Precio Venta</th>
+                                        <th>Valor Total</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyProductoTerminado">
+                                    <% 
+                                    let totalValor = 0;
+                                    productoTerminado.forEach(p => { 
+                                        const valorTotal = p.cantidad * p.costoUnitario;
+                                        const valorVenta = p.cantidad * p.precioVenta;
+                                        totalValor += valorTotal;
+                                    %>
+                                    <tr>
+                                        <td><strong><%= p.plato %></strong></td>
+                                        <td>
+                                            <span class="badge" style="background: <%= p.cantidad > 0 ? '#21c354' : '#ff4b4b' %>; color: white;">
+                                                <%= p.cantidad %> unidades
+                                            </span>
+                                        </td>
+                                        <td>L. <%= p.costoUnitario.toFixed(2) %></td>
+                                        <td><strong>L. <%= p.precioVenta.toFixed(2) %></strong></td>
+                                        <td>
+                                            <div>Costo: L. <%= valorTotal.toFixed(2) %></div>
+                                            <div style="color: #21c354; font-weight: bold;">Venta: L. <%= valorVenta.toFixed(2) %></div>
+                                        </td>
+                                        <td>
+                                            <button class="btn btn-sm" onclick="registrarSalidaRapida('<%= p.plato %>', <%= p.cantidad %>)"
+                                                    style="background: #ff4b4b; color: white; margin-right: 0.25rem;">
+                                                📤 Salida
+                                            </button>
+                                            <button class="btn btn-sm" onclick="eliminarProductoTerminado('<%= p.id %>', '<%= p.plato %>')"
+                                                    style="background: #999; color: white;" title="Eliminar">
+                                                🗑️
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <% }); %>
+                                </tbody>
+                                <tfoot>
+                                    <tr style="background: var(--light); font-weight: bold;">
+                                        <td colspan="4" style="text-align: right;">VALOR TOTAL INVENTARIO:</td>
+                                        <td colspan="2">L. <%= totalValor.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') %></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                    <% } else { %>
+                        <div style="text-align: center; padding: 3rem;">
+                            <p class="text-muted">No hay producto terminado en stock</p>
+                            <p class="text-muted" style="font-size: 0.9rem;">
+                                El producto terminado se agrega automáticamente cuando procesás una producción
+                            </p>
+                            <a href="/produccion" class="btn btn-primary" style="margin-top: 1rem;">
+                                Ir a Producción
+                            </a>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+            
+            <!-- Resumen -->
+            <div class="metrics-grid" style="margin-top: 1.5rem;">
+                <div class="metric-card">
+                    <div class="metric-icon">📦</div>
+                    <div class="metric-content">
+                        <h3>Tipos de Platos</h3>
+                        <p class="metric-value"><%= productoTerminado.length %></p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">🍽️</div>
+                    <div class="metric-content">
+                        <h3>Unidades Totales</h3>
+                        <p class="metric-value"><%= productoTerminado.reduce((sum, p) => sum + p.cantidad, 0) %></p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">💰</div>
+                    <div class="metric-content">
+                        <h3>Valor en Costo</h3>
+                        <p class="metric-value">L. <%= productoTerminado.reduce((sum, p) => sum + (p.cantidad * p.costoUnitario), 0).toFixed(2) %></p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">💵</div>
+                    <div class="metric-content">
+                        <h3>Valor en Venta</h3>
+                        <p class="metric-value">L. <%= productoTerminado.reduce((sum, p) => sum + (p.cantidad * p.precioVenta), 0).toFixed(2) %></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB MOVIMIENTOS -->
+        <div id="tab-movimientos" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Historial de Movimientos</h3>
+                </div>
+                <div class="card-body">
+                    <% if (movimientos && movimientos.length > 0) { %>
+                        <div class="table-container">
+                            <table class="table">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>Plato</th>
+                                        <th>Tipo</th>
+                                        <th>Cantidad</th>
+                                        <th>Stock Anterior</th>
+                                        <th>Stock Nuevo</th>
+                                        <th>Detalle</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% movimientos.slice(-50).reverse().forEach(m => { %>
+                                    <tr>
+                                        <td><%= new Date(m.fecha).toLocaleString('es-HN') %></td>
+                                        <td><strong><%= m.plato %></strong></td>
+                                        <td>
+                                            <span class="badge" style="background: 
+                                                <%= m.tipo === 'ENTRADA' ? '#21c354' : m.tipo === 'SALIDA' ? '#ff4b4b' : '#0068c9' %>; 
+                                                color: white;">
+                                                <%= m.tipo === 'ENTRADA' ? '📥' : m.tipo === 'SALIDA' ? '📤' : '🔧' %> <%= m.tipo %>
+                                            </span>
+                                        </td>
+                                        <td><%= m.cantidad %></td>
+                                        <td><%= m.stockAnterior %></td>
+                                        <td><strong><%= m.stockNuevo %></strong></td>
+                                        <td><%= m.origen || m.motivo || '-' %></td>
+                                    </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-muted" style="margin-top: 1rem; text-align: center;">
+                            Mostrando últimos 50 movimientos
+                        </p>
+                    <% } else { %>
+                        <p class="text-center text-muted">No hay movimientos registrados</p>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB REGISTRAR SALIDA -->
+        <div id="tab-salida" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Registrar Salida de Producto</h3>
+                </div>
+                <div class="card-body">
+                    <form id="formSalida" onsubmit="registrarSalida(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Plato</label>
+                                <select id="platoSalida" required onchange="actualizarStockDisponible()">
+                                    <option value="">Seleccionar plato...</option>
+                                    <% productoTerminado.forEach(p => { %>
+                                        <option value="<%= p.plato %>" data-stock="<%= p.cantidad %>">
+                                            <%= p.plato %> (Stock: <%= p.cantidad %>)
+                                        </option>
+                                    <% }); %>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Cantidad</label>
+                                <input type="number" id="cantidadSalida" min="1" step="1" required>
+                                <small id="stockDisponible" class="text-muted"></small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Motivo de Salida</label>
+                            <select id="motivoSalida" required>
+                                <option value="Venta">Venta</option>
+                                <option value="Consumo interno">Consumo interno</option>
+                                <option value="Degustación">Degustación</option>
+                                <option value="Merma">Merma</option>
+                                <option value="Donación">Donación</option>
+                                <option value="Otro">Otro</option>
+                            </select>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-block">
+                            📤 Registrar Salida
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB AJUSTE (Solo Admin) -->
+        <% if (isAdmin) { %>
+        <div id="tab-ajuste" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>⚠️ Ajuste de Inventario (Solo Admin)</h3>
+                </div>
+                <div class="card-body">
+                    <div class="alert alert-warning">
+                        <strong>Atención:</strong> Esta función permite ajustar el stock manualmente.
+                        Usala solo para correcciones de inventario.
+                    </div>
+                    
+                    <form id="formAjuste" onsubmit="realizarAjuste(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Plato</label>
+                                <select id="platoAjuste" required onchange="mostrarStockActual()">
+                                    <option value="">Seleccionar plato...</option>
+                                    <% productoTerminado.forEach(p => { %>
+                                        <option value="<%= p.plato %>" data-stock="<%= p.cantidad %>">
+                                            <%= p.plato %>
+                                        </option>
+                                    <% }); %>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Nueva Cantidad</label>
+                                <input type="number" id="nuevaCantidad" min="0" step="1" required>
+                                <small id="stockActual" class="text-muted"></small>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Motivo del Ajuste</label>
+                            <input type="text" id="motivoAjuste" required 
+                                   placeholder="Ej: Conteo físico, Corrección de error">
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-block">
+                            🔧 Realizar Ajuste
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <% } %>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/producto-terminado.js"></script>
+</body>
+</html>

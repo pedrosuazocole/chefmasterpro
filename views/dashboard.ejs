@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>🍳 COCINA</h2>
+            <p class="user-info">👤 <%= user.nombreCompleto %></p>
+            <span class="user-role"><%= user.rol.toUpperCase() %></span>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="/" class="nav-link active">📊 Dashboard</a>
+            <a href="/catalogo" class="nav-link">📋 Catálogo</a>
+            <a href="/inventario" class="nav-link">📦 Inventario/Compras</a>
+            <a href="/recetas" class="nav-link">🍽️ Recetas</a>
+            <a href="/produccion" class="nav-link">👨‍🍳 Producción</a>
+            <a href="/reportes" class="nav-link">📈 Reportes</a>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <form action="/logout" method="POST">
+                <button type="submit" class="btn-logout">🚪 Cerrar Sesión</button>
+            </form>
+        </div>
+    </aside>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📊 Panel de Control</h1>
+            <p class="subtitle">Resumen general del sistema</p>
+        </header>
+        
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-icon">💰</div>
+                <div class="metric-content">
+                    <h3>Inversión en Bodega</h3>
+                    <p class="metric-value">L. <%= totalInventario.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') %></p>
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-icon">🍽️</div>
+                <div class="metric-content">
+                    <h3>Recetas Activas</h3>
+                    <p class="metric-value"><%= recetasActivas %></p>
+                </div>
+            </div>
+            
+            <div class="metric-card">
+                <div class="metric-icon">📊</div>
+                <div class="metric-content">
+                    <h3>Margen Promedio</h3>
+                    <p class="metric-value"><%= margenPromedio %>%</p>
+                </div>
+            </div>
+            
+            <div class="metric-card <%= stockBajo > 0 ? 'alert-card' : '' %>">
+                <div class="metric-icon">⚠️</div>
+                <div class="metric-content">
+                    <h3>Stock Bajo</h3>
+                    <p class="metric-value"><%= stockBajo %></p>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-header">
+                <h2>📋 Últimas Producciones</h2>
+            </div>
+            <div class="card-body">
+                <% if (ultimasProduciones.length === 0) { %>
+                    <p class="text-muted text-center">No hay producciones registradas aún</p>
+                <% } else { %>
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Fecha</th>
+                                <th>ID Operación</th>
+                                <th>Plato</th>
+                                <th>Cantidad</th>
+                                <th>Costo</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% ultimasProduciones.forEach(prod => { %>
+                            <tr>
+                                <td><%= new Date(prod.fecha).toLocaleString('es-HN') %></td>
+                                <td><code><%= prod.idOperacion %></code></td>
+                                <td><%= prod.plato %></td>
+                                <td><%= prod.cantidad %></td>
+                                <td>L. <%= prod.costoProduccion.toFixed(2) %></td>
+                            </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                <% } %>
+            </div>
+        </div>
+        
+        <div class="welcome-message">
+            <h3>👋 ¡Bienvenido, <%= user.nombreCompleto %>!</h3>
+            <p>Seleccioná una opción del menú lateral para comenzar</p>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+</body>
+</html>

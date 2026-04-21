@@ -1,0 +1,27 @@
+<aside class="sidebar">
+    <div class="sidebar-header">
+        <h2>🍽️ CHEF MASTER PRO</h2>
+        <p class="user-info">👤 <%= user.nombreCompleto %></p>
+        <span class="user-role"><%= user.rol.toUpperCase() %></span>
+    </div>
+    
+    <nav class="sidebar-nav">
+        <a href="/" class="nav-link">📊 Dashboard</a>
+        <a href="/catalogo" class="nav-link">📋 Catálogo</a>
+        <a href="/inventario" class="nav-link">📦 Inventario</a>
+        <a href="/recetas" class="nav-link">🍽️ Recetas</a>
+        <a href="/produccion" class="nav-link">👨‍🍳 Producción</a>
+        <a href="/producto-terminado" class="nav-link">📦 Producto Terminado</a>
+        <a href="/kardex" class="nav-link">📋 Kardex</a>
+        <a href="/reportes" class="nav-link">📈 Reportes</a>
+        <% if (isAdmin) { %>
+        <a href="/usuarios" class="nav-link">👥 Usuarios</a>
+        <% } %>
+    </nav>
+    
+    <div class="sidebar-footer">
+        <form action="/logout" method="POST">
+            <button type="submit" class="btn-logout">🚪 Cerrar Sesión</button>
+        </form>
+    </div>
+</aside>

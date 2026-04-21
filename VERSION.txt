@@ -1,0 +1,39 @@
+═══════════════════════════════════════════════════════════
+  🍽️  CHEF MASTER PRO - VERSION 1.5.4 BUGFIX
+═══════════════════════════════════════════════════════════
+  De la Compra a la Venta, Todo Bajo Control
+  Fecha: Abril 2026
+═══════════════════════════════════════════════════════════
+
+BUGS CORREGIDOS EN ESTA VERSIÓN:
+
+✅ BUG 1: Error de conexión al crear producción
+   CAUSA: idOperacion se usaba antes de declararse
+   FIX:   Se declara ANTES del loop de Kardex
+
+✅ BUG 2: Botón Eliminar ausente en Historial
+   CAUSA: inventario.ejs y inventario.js reescritos
+   FIX:   Botón 🗑️ Eliminar funcional por registro
+
+✅ BUG 3: Kardex sin detalle de costos
+   CAUSA: kardex.ejs incompleto
+   FIX:   11 columnas: Costo Unit., Costo Promedio,
+          Valor Movimiento, Saldo, Stock Anterior
+
+✅ NUEVO: Buscador en Historial de Compras
+   - Busca por No. Factura o Producto
+   - Filtro por Fecha
+
+✅ NUEVO: Buscador en Stock Actual
+   - Filtrado en tiempo real
+
+✅ NUEVO: Exportar Historial de Compras a Excel
+
+✅ NUEVO: Unidad se autocompleta al seleccionar producto
+✅ NUEVO: Costo de referencia se sugiere al seleccionar
+
+═══════════════════════════════════════════════════════════
+CREDENCIALES: admin / admin123
+INSTALACIÓN:  npm install && npm start
+URL:          http://localhost:3000
+═══════════════════════════════════════════════════════════

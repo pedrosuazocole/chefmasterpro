@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Producción - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>👨‍🍳 Control de Producción</h1>
+            <p class="subtitle">Procesá platos y descontá inventario automáticamente</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('procesar')">Procesar Producción</button>
+            <button class="tab-btn" onclick="switchTab('historial')">Historial</button>
+        </div>
+        
+        <div id="tab-procesar" class="tab-content active">
+            <% if (recetas && recetas.length > 0) { %>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Nueva Producción</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="formProduccion" onsubmit="procesarProduccion(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Seleccionar Plato</label>
+                                    <select id="selectPlato" required onchange="validarStock()">
+                                        <option value="">Elegí un plato...</option>
+                                        <% recetas.forEach(r => { %>
+                                            <option value="<%= r.plato %>"><%= r.plato %></option>
+                                        <% }); %>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Cantidad de Porciones</label>
+                                    <input type="number" id="cantidadPorciones" min="1" value="1" required onchange="validarStock()">
+                                </div>
+                            </div>
+                            
+                            <div id="validacionStock" style="margin: 1.5rem 0;"></div>
+                            
+                            <button type="submit" id="btnProcesar" class="btn btn-primary btn-block" disabled>
+                                👨‍🍳 Procesar Producción
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            <% } else { %>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-center text-muted">
+                            ⚠️ No hay recetas creadas. Primero creá una receta en el módulo de Recetas.
+                        </p>
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <a href="/recetas" class="btn btn-primary">Ir a Recetas</a>
+                        </div>
+                    </div>
+                </div>
+            <% } %>
+        </div>
+        
+        <div id="tab-historial" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Historial de Producción</h3>
+                </div>
+                <div class="card-body">
+                    <% if (produccion && produccion.length > 0) { %>
+                        <% produccion.slice(-20).reverse().forEach(p => { %>
+                            <div style="background: var(--light); padding: 1.5rem; border-radius: 8px; margin-bottom: 1rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: start;">
+                                    <div>
+                                        <h4 style="margin: 0 0 0.5rem 0;"><%= p.plato %></h4>
+                                        <p style="margin: 0; color: #666;">
+                                            📅 <%= new Date(p.fecha).toLocaleString('es-HN') %><br>
+                                            🆔 <%= p.idOperacion %><br>
+                                            📊 Cantidad: <%= p.cantidad %> porción(es)<br>
+                                            💰 Costo: L. <%= p.costoProduccion.toFixed(2) %>
+                                        </p>
+                                    </div>
+                                    <button class="btn btn-sm" onclick="eliminarProduccion('<%= p.id %>')" 
+                                            style="background: #ff4b4b; color: white;">
+                                        🔄 Revertir
+                                    </button>
+                                </div>
+                            </div>
+                        <% }); %>
+                    <% } else { %>
+                        <p class="text-center text-muted">No hay producciones registradas aún</p>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script>
+        let inventarioActual = [];
+        
+        async function cargarInventario() {
+            const response = await fetch('/api/inventario');
+            inventarioActual = await response.json();
+        }
+        
+        async function validarStock() {
+            const plato = document.getElementById('selectPlato').value;
+            const cantidad = parseInt(document.getElementById('cantidadPorciones').value);
+            
+            if (!plato) return;
+            
+            const response = await fetch(`/api/receta/${plato}`);
+            const receta = await response.json();
+            
+            const validacion = document.getElementById('validacionStock');
+            let html = '<table class="table"><thead><tr><th>Ingrediente</th><th>Necesario</th><th>Stock</th><th>Estado</th></tr></thead><tbody>';
+            let todoOk = true;
+            
+            receta.detalleReceta.forEach(ing => {
+                const necesario = parseFloat(ing.Cantidad) * cantidad;
+                const inv = inventarioActual.find(i => i.codigo === ing.Codigo);
+                const stock = inv ? inv.stock : 0;
+                const estado = stock >= necesario;
+                
+                if (!estado) todoOk = false;
+                
+                html += `
+                    <tr>
+                        <td>${ing.Nombre}</td>
+                        <td>${necesario.toFixed(2)}</td>
+                        <td>${stock.toFixed(2)}</td>
+                        <td>${estado ? '<span style="color: #21c354;">✅ OK</span>' : '<span style="color: #ff4b4b;">❌ FALTA</span>'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += '</tbody></table>';
+            validacion.innerHTML = html;
+            
+            document.getElementById('btnProcesar').disabled = !todoOk;
+        }
+        
+        async function procesarProduccion(event) {
+            event.preventDefault();
+            
+            const plato = document.getElementById('selectPlato').value;
+            const cantidad = document.getElementById('cantidadPorciones').value;
+            
+            if (!confirm(`¿Confirmas procesar ${cantidad} porción(es) de ${plato}?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/produccion/procesar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plato, cantidad })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Producción procesada: ${data.idOperacion}`, 'success');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    showNotification(data.error || 'Error al procesar', 'error');
+                }
+            } catch (error) {
+                showNotification('Error de conexión', 'error');
+            }
+        }
+        
+        async function eliminarProduccion(id) {
+            if (!confirm('¿Confirmas revertir esta producción? Se restaurará el stock.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/produccion/eliminar/${id}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Producción revertida y stock restaurado', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                }
+            } catch (error) {
+                showNotification('Error al revertir', 'error');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarInventario();
+        });
+    </script>
+</body>
+</html>

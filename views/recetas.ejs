@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recetas - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>🍽️ Gestión de Recetas</h1>
+            <p class="subtitle">Creá recetas y calculá costos automáticamente</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('crear')">Crear Receta</button>
+            <button class="tab-btn" onclick="switchTab('lista')">Ver Recetas</button>
+        </div>
+        
+        <div id="tab-crear" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Nueva Receta</h3>
+                </div>
+                <div class="card-body">
+                    <form id="formReceta" onsubmit="crearReceta(event)">
+                        <div class="form-group">
+                            <label>Nombre del Plato</label>
+                            <input type="text" id="nombrePlato" required placeholder="Ej: SAMBOS RELLENOS">
+                        </div>
+                        
+                        <h4 style="margin: 1.5rem 0 1rem;">Ingredientes</h4>
+                        <div id="ingredientesReceta"></div>
+                        <button type="button" class="btn btn-sm" onclick="agregarIngrediente()">
+                            ➕ Agregar Ingrediente
+                        </button>
+                        
+                        <hr style="margin: 2rem 0;">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Precio de Venta Deseado (L.)</label>
+                                <input type="number" id="precioVenta" step="0.01" required placeholder="0.00">
+                            </div>
+                            <div class="form-group">
+                                <label>Margen Objetivo (%)</label>
+                                <input type="number" id="margenObjetivo" step="0.01" value="70" placeholder="70">
+                            </div>
+                        </div>
+                        
+                        <div style="background: var(--light); padding: 1.5rem; border-radius: 8px; margin: 1rem 0;">
+                            <h3>Resumen de Costos</h3>
+                            <p>Costo Total del Plato: <strong id="costoTotalPlato">L. 0.00</strong></p>
+                            <p>Precio de Venta: <strong id="precioVentaDisplay">L. 0.00</strong></p>
+                            <p>Utilidad: <strong id="utilidadDisplay">L. 0.00</strong></p>
+                            <p>Margen: <strong id="margenDisplay">0%</strong></p>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-block">💾 Guardar Receta</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tab-lista" class="tab-content">
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Recetas Guardadas</h3>
+                    <div>
+                        <button class="btn btn-sm" onclick="exportarExcel('recetas', 'recetas')" 
+                                style="background: #21c354; color: white; margin-right: 0.5rem;">
+                            📊 Excel
+                        </button>
+                        <button class="btn btn-sm" onclick="exportarPDF('recetas', 'recetas')" 
+                                style="background: #ff4b4b; color: white;">
+                            📄 PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <% if (recetas && recetas.length > 0) { %>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Plato</th>
+                                    <th>Costo</th>
+                                    <th>Precio Venta</th>
+                                    <th>Margen</th>
+                                    <th>Estado</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% recetas.forEach(r => { 
+                                    const margenActual = parseFloat(r.alerta.margenActual);
+                                    const margenObjetivo = r.alerta.margenObjetivo;
+                                    const esBajo = margenActual < margenObjetivo;
+                                    const colorFondo = esBajo ? '#ffe6e6' : '#e6ffe6';
+                                    const colorMargen = esBajo ? '#ff4b4b' : '#21c354';
+                                %>
+                                <tr style="background: <%= colorFondo %>;">
+                                    <td>
+                                        <strong><%= r.plato %></strong>
+                                        <% if (r.alerta.hayCambios) { %>
+                                            <br><span style="color: #ff9800; font-size: 0.85rem;">
+                                                ⚠️ Precios actualizados
+                                            </span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (r.alerta.hayCambios) { %>
+                                            <span style="text-decoration: line-through; color: #999;">
+                                                L. <%= parseFloat(r.alerta.costoAnterior).toFixed(2) %>
+                                            </span>
+                                            <br>
+                                        <% } %>
+                                        <strong>L. <%= parseFloat(r.alerta.costoActual).toFixed(2) %></strong>
+                                        <br><small style="color: #666;">Costo Promedio</small>
+                                    </td>
+                                    <td><strong>L. <%= r.precioVenta.toFixed(2) %></strong></td>
+                                    <td>
+                                        <strong style="color: <%= colorMargen %>; font-size: 1.1rem;">
+                                            <%= margenActual.toFixed(1) %>%
+                                            <%= esBajo ? '⚠️' : '✅' %>
+                                        </strong>
+                                        <br>
+                                        <small style="color: #666;">
+                                            Objetivo: <%= margenObjetivo %>%
+                                            <br>
+                                            Utilidad: L. <%= r.alerta.utilidadActual %>
+                                        </small>
+                                    </td>
+                                    <td>
+                                        <% if (esBajo) { %>
+                                            <span class="badge" style="background: #ff4b4b; color: white; padding: 0.35rem 0.75rem; border-radius: 12px;">
+                                                BAJO OBJETIVO
+                                            </span>
+                                        <% } else { %>
+                                            <span class="badge" style="background: #21c354; color: white; padding: 0.35rem 0.75rem; border-radius: 12px;">
+                                                MARGEN OK
+                                            </span>
+                                        <% } %>
+                                    </td>
+                                    <td>
+                                        <% if (r.alerta.hayCambios) { %>
+                                            <button class="btn btn-sm" onclick="actualizarCostosReceta('<%= r.plato %>')"
+                                                    style="background: #ff9800; color: white; margin-bottom: 0.5rem;">
+                                                🔄 Actualizar Costos
+                                            </button>
+                                            <br>
+                                        <% } %>
+                                        <% if (esBajo) { %>
+                                            <button class="btn btn-sm" onclick="sugerirPrecio('<%= r.plato %>', <%= r.alerta.precioSugerido %>)"
+                                                    style="background: #0068c9; color: white; margin-bottom: 0.5rem;">
+                                                💡 Precio Sugerido: L. <%= r.alerta.precioSugerido %>
+                                            </button>
+                                            <br>
+                                        <% } %>
+                                        <button class="btn btn-sm" onclick="editarPrecioVenta('<%= r.id %>', '<%= r.plato %>', <%= r.precioVenta %>)"
+                                                style="background: #0068c9; color: white; margin-right: 0.25rem;">
+                                            ✏️ Editar Precio
+                                        </button>
+                                        <button class="btn btn-sm" onclick="eliminarReceta('<%= r.id %>', '<%= r.plato %>')"
+                                                style="background: #ff4b4b; color: white;">
+                                            🗑️ Eliminar
+                                        </button>
+                                    </td>
+                                </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                    <% } else { %>
+                        <p class="text-center text-muted">No hay recetas creadas aún</p>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/exportar.js"></script>
+    <script>
+        let inventarioDisponible = [];
+        
+        async function cargarInventario() {
+            const response = await fetch('/api/inventario');
+            inventarioDisponible = await response.json();
+            agregarIngrediente();
+        }
+        
+        function agregarIngrediente() {
+            const container = document.getElementById('ingredientesReceta');
+            const html = `
+                <div class="ingrediente-item" style="background: var(--light); padding: 1rem; border-radius: 8px; margin-bottom: 0.5rem;">
+                    <div class="form-row" style="grid-template-columns: 2fr 1fr auto;">
+                        <select class="ing-select" required onchange="actualizarCostos()">
+                            <option value="">Seleccionar ingrediente...</option>
+                            ${inventarioDisponible.map(i => 
+                                `<option value="${i.codigo}" data-costo="${i.costoUnitario}" data-nombre="${i.ingrediente}">
+                                    ${i.ingrediente} (L. ${i.costoUnitario.toFixed(2)}/${i.unidad})
+                                </option>`
+                            ).join('')}
+                        </select>
+                        <input type="number" class="ing-cantidad" step="0.01" min="0.01" placeholder="Cantidad" required onchange="actualizarCostos()">
+                        <button type="button" class="btn btn-sm" onclick="this.parentElement.parentElement.remove(); actualizarCostos();" 
+                                style="background: #ff4b4b; color: white;">🗑️</button>
+                    </div>
+                </div>
+            `;
+            container.insertAdjacentHTML('beforeend', html);
+        }
+        
+        function actualizarCostos() {
+            let costoTotal = 0;
+            document.querySelectorAll('.ingrediente-item').forEach(item => {
+                const select = item.querySelector('.ing-select');
+                const cantidad = parseFloat(item.querySelector('.ing-cantidad').value) || 0;
+                const costo = parseFloat(select.options[select.selectedIndex]?.dataset.costo || 0);
+                costoTotal += cantidad * costo;
+            });
+            
+            const precioVenta = parseFloat(document.getElementById('precioVenta').value) || 0;
+            const utilidad = precioVenta - costoTotal;
+            const margen = precioVenta > 0 ? (utilidad / precioVenta) * 100 : 0;
+            
+            document.getElementById('costoTotalPlato').textContent = 'L. ' + costoTotal.toFixed(2);
+            document.getElementById('precioVentaDisplay').textContent = 'L. ' + precioVenta.toFixed(2);
+            document.getElementById('utilidadDisplay').textContent = 'L. ' + utilidad.toFixed(2);
+            document.getElementById('margenDisplay').textContent = margen.toFixed(1) + '%';
+        }
+        
+        async function crearReceta(event) {
+            event.preventDefault();
+            
+            const plato = document.getElementById('nombrePlato').value;
+            const precioVenta = document.getElementById('precioVenta').value;
+            const margenObjetivo = document.getElementById('margenObjetivo').value;
+            
+            const ingredientes = [];
+            document.querySelectorAll('.ingrediente-item').forEach(item => {
+                const select = item.querySelector('.ing-select');
+                const opt = select.options[select.selectedIndex];
+                if (opt.value) {
+                    ingredientes.push({
+                        codigo: opt.value,
+                        nombre: opt.dataset.nombre,
+                        cantidad: item.querySelector('.ing-cantidad').value,
+                        costoUnitario: opt.dataset.costo
+                    });
+                }
+            });
+            
+            if (ingredientes.length === 0) {
+                alert('Debés agregar al menos un ingrediente');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/recetas/crear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plato, ingredientes, precioVenta, margenObjetivo })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Receta creada exitosamente', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                }
+            } catch (error) {
+                showNotification('Error al crear receta', 'error');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarInventario();
+            document.getElementById('precioVenta').addEventListener('input', actualizarCostos);
+        });
+        
+        // NUEVAS FUNCIONES PARA RECETAS INTELIGENTES
+        async function actualizarCostosReceta(plato) {
+            if (!confirm(`¿Actualizar costos de "${plato}" con precios actuales del inventario?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/recetas/actualizar-costos/${encodeURIComponent(plato)}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Costos actualizados. Nuevo costo: L. ${parseFloat(data.costoNuevo).toFixed(2)} - Margen: ${data.margenNuevo}%`, 'success');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    showNotification('Error al actualizar costos', 'error');
+                }
+            } catch (error) {
+                showNotification('Error de conexión', 'error');
+            }
+        }
+        
+        function sugerirPrecio(plato, precioSugerido) {
+            const mensaje = `Para "${plato}":\n\nPrecio Actual: Se mostrará en la tabla\nPrecio Sugerido: L. ${precioSugerido}\n\nEste precio mantendría el margen objetivo.`;
+            alert(mensaje);
+        }
+        
+        async function eliminarReceta(id, plato) {
+            if (!confirm(`¿Está seguro de eliminar la receta "${plato}"?\n\n⚠️ Esta acción NO puede deshacerse.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/recetas/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Receta eliminada exitosamente', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showNotification(data.error || 'Error al eliminar', 'error');
+                }
+            } catch (error) {
+                showNotification('Error de conexión', 'error');
+            }
+        }
+        
+        async function editarPrecioVenta(id, plato, precioActual) {
+            const nuevoPrecio = prompt(`Editar precio de venta para "${plato}"\n\nPrecio actual: L. ${precioActual.toFixed(2)}\n\nIngrese el nuevo precio:`, precioActual.toFixed(2));
+            
+            if (nuevoPrecio === null || nuevoPrecio === '') {
+                return;
+            }
+            
+            const precio = parseFloat(nuevoPrecio);
+            
+            if (isNaN(precio) || precio <= 0) {
+                alert('Por favor ingrese un precio válido');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/recetas/${id}/precio`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ precioVenta: precio })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Precio actualizado a L. ${precio.toFixed(2)}`, 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showNotification(data.error || 'Error al actualizar', 'error');
+                }
+            } catch (error) {
+                showNotification('Error de conexión', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

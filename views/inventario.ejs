@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario - Chef Master Pro</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📦 Inventario y Compras</h1>
+            <p class="subtitle">Registrá facturas y controlá el stock</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('registrar')">📝 Registrar Compra</button>
+            <button class="tab-btn" onclick="switchTab('stock')">📦 Stock Actual</button>
+            <button class="tab-btn" onclick="switchTab('historial')">📋 Historial</button>
+        </div>
+        
+        <!-- TAB REGISTRAR COMPRA -->
+        <div id="tab-registrar" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Nueva Factura de Compra</h3>
+                </div>
+                <div class="card-body">
+                    <form id="formCompra" onsubmit="registrarCompra(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>No. de Factura *</label>
+                                <input type="text" id="noFactura" required placeholder="Ej: 001-2026">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha de Factura *</label>
+                                <input type="date" id="fechaFactura" required value="<%= new Date().toISOString().split('T')[0] %>">
+                            </div>
+                            <div class="form-group">
+                                <label>Proveedor</label>
+                                <input type="text" id="proveedor" placeholder="Nombre del proveedor">
+                            </div>
+                        </div>
+                        
+                        <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border);">
+                        <h4 style="margin-bottom: 1rem;">Productos de la Factura</h4>
+                        
+                        <div id="productosCompra"></div>
+                        
+                        <button type="button" class="btn btn-sm" onclick="agregarProductoCompra()" 
+                                style="margin-bottom: 1.5rem; background: var(--primary); color: white;">
+                            ➕ Agregar Producto
+                        </button>
+                        
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--light); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <h3>Total Factura: <span id="totalFactura" style="color: var(--primary);">L. 0.00</span></h3>
+                            <button type="submit" class="btn btn-primary">💾 Guardar Factura</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB STOCK ACTUAL -->
+        <div id="tab-stock" class="tab-content">
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Stock Actual de Inventario</h3>
+                    <button class="btn btn-sm" onclick="exportarExcel('inventario','inventario')" 
+                            style="background:#21c354;color:white;">📊 Exportar Excel</button>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom:1rem;">
+                        <input type="text" id="buscarStock" placeholder="🔍 Buscar ingrediente..." 
+                               onkeyup="filtrarStock()" 
+                               style="width:100%;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-size:1rem;">
+                    </div>
+                    <div class="table-container">
+                        <table class="table" id="tablaStock">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Ingrediente</th>
+                                    <th>Stock</th>
+                                    <th>Unidad</th>
+                                    <th>Costo Unitario</th>
+                                    <th>Costo Promedio</th>
+                                    <th>Valor Total</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyStock">
+                                <tr><td colspan="8" class="text-center text-muted">Cargando inventario...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB HISTORIAL -->
+        <div id="tab-historial" class="tab-content">
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Historial de Compras</h3>
+                    <button class="btn btn-sm" onclick="exportarExcel('historial','historial_compras')" 
+                            style="background:#21c354;color:white;">📊 Exportar Excel</button>
+                </div>
+                <div class="card-body">
+                    <div class="form-row" style="margin-bottom:1.5rem;">
+                        <div class="form-group">
+                            <label>🔍 Buscar por Factura o Producto</label>
+                            <input type="text" id="buscarHistorial" 
+                                   placeholder="Ej: 001-2026 o PAPAS..." 
+                                   onkeyup="filtrarHistorial()">
+                        </div>
+                        <div class="form-group">
+                            <label>Filtrar por Fecha</label>
+                            <input type="date" id="fechaFiltro" onchange="filtrarHistorial()">
+                        </div>
+                    </div>
+                    
+                    <% if (historial && historial.length > 0) { %>
+                        <div class="table-container">
+                            <table class="table" id="tablaHistorial">
+                                <thead>
+                                    <tr>
+                                        <th>Fecha</th>
+                                        <th>No. Factura</th>
+                                        <th>Proveedor</th>
+                                        <th>Producto</th>
+                                        <th>Cantidad</th>
+                                        <th>Unidad</th>
+                                        <th>Costo Unit.</th>
+                                        <th>Total</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyHistorial">
+                                    <% historial.slice().reverse().forEach(h => { %>
+                                    <tr data-factura="<%= (h.noFactura||'').toLowerCase() %>" 
+                                        data-producto="<%= (h.producto||'').toLowerCase() %>"
+                                        data-fecha="<%= h.fechaFactura || '' %>">
+                                        <td><%= h.fechaFactura || '-' %></td>
+                                        <td>
+                                            <code style="background:#f0f4ff;padding:0.2rem 0.5rem;border-radius:4px;font-weight:bold;">
+                                                <%= h.noFactura %>
+                                            </code>
+                                        </td>
+                                        <td><small><%= h.proveedor || '-' %></small></td>
+                                        <td><strong><%= h.producto %></strong></td>
+                                        <td><%= parseFloat(h.cantidad || 0).toFixed(2) %></td>
+                                        <td>
+                                            <span style="background:#e8f4fd;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.85rem;">
+                                                <%= h.unidad || 'Unidad' %>
+                                            </span>
+                                        </td>
+                                        <td>L. <%= parseFloat(h.costoUnitario || 0).toFixed(2) %></td>
+                                        <td><strong style="color:#21c354;">L. <%= parseFloat(h.costoTotal || 0).toFixed(2) %></strong></td>
+                                        <td>
+                                            <% if (h.id) { %>
+                                            <button class="btn btn-sm" 
+                                                    onclick="eliminarCompra('<%= h.id %>', '<%= h.noFactura %>', '<%= h.producto %>')" 
+                                                    style="background:#ff4b4b;color:white;padding:0.3rem 0.7rem;border-radius:6px;cursor:pointer;" 
+                                                    title="Eliminar este registro">
+                                                🗑️ Eliminar
+                                            </button>
+                                            <% } else { %>
+                                            <small style="color:#bbb;">—</small>
+                                            <% } %>
+                                        </td>
+                                    </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p class="text-muted" style="margin-top:0.5rem;font-size:0.85rem;text-align:right;">
+                            Total: <%= historial.length %> registros
+                        </p>
+                    <% } else { %>
+                        <div style="text-align:center;padding:3rem;color:#999;">
+                            <div style="font-size:3rem;">📋</div>
+                            <p>No hay compras registradas aún</p>
+                            <button class="btn btn-primary" onclick="switchTab('registrar')">
+                                ➕ Registrar Primera Compra
+                            </button>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/exportar.js"></script>
+    <script src="/js/inventario.js"></script>
+    <script>
+        function filtrarHistorial() {
+            const busqueda = document.getElementById('buscarHistorial').value.toLowerCase().trim();
+            const fechaFiltro = document.getElementById('fechaFiltro').value;
+            const filas = document.querySelectorAll('#tbodyHistorial tr');
+            
+            filas.forEach(fila => {
+                const factura = (fila.dataset.factura || '');
+                const producto = (fila.dataset.producto || '');
+                const fecha = (fila.dataset.fecha || '');
+                
+                const coincideBusqueda = busqueda === '' || 
+                    factura.includes(busqueda) || 
+                    producto.includes(busqueda);
+                const coincideFecha = fechaFiltro === '' || fecha === fechaFiltro;
+                
+                fila.style.display = (coincideBusqueda && coincideFecha) ? '' : 'none';
+            });
+        }
+        
+        function filtrarStock() {
+            const busqueda = document.getElementById('buscarStock').value.toLowerCase();
+            const filas = document.querySelectorAll('#tbodyStock tr');
+            filas.forEach(fila => {
+                const texto = fila.textContent.toLowerCase();
+                fila.style.display = (busqueda === '' || texto.includes(busqueda)) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>
