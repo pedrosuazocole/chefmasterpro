@@ -1,1 +1,50 @@
-[]
+[
+  {
+    "codigo": "001",
+    "ingrediente": "ZAMBOS PICOSITO",
+    "unidad": "Unidad",
+    "stock": 24,
+    "costoUnitario": 3.5,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "002",
+    "ingrediente": "CARNE MOLIDA",
+    "unidad": "Libra",
+    "stock": 10,
+    "costoUnitario": 45,
+    "stockMinimo": 2
+  },
+  {
+    "codigo": "003",
+    "ingrediente": "LIMON",
+    "unidad": "Unidad",
+    "stock": 0,
+    "costoUnitario": 0,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "004",
+    "ingrediente": "REPOLLO",
+    "unidad": "Unidad",
+    "stock": 0,
+    "costoUnitario": 0,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "005",
+    "ingrediente": "TOMATE",
+    "unidad": "Unidad",
+    "stock": 0,
+    "costoUnitario": 0,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "006",
+    "ingrediente": "CULANTRO FINO",
+    "unidad": "Unidad",
+    "stock": 0,
+    "costoUnitario": 0,
+    "stockMinimo": 5
+  }
+]

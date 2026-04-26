@@ -1,1 +1,28 @@
-[]
+[
+  {
+    "id": "id_1777227720020_vxgob",
+    "producto": "PAPAS",
+    "fecha": "2026-04-26T18:22:00.020Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-F001",
+    "cantidad": 30,
+    "costoUnitario": 3.5,
+    "valorTotal": 105,
+    "stockAnterior": 0,
+    "stockNuevo": 30,
+    "observaciones": "Compra - Proveedor A"
+  },
+  {
+    "id": "id_1777227720022_6fg6z",
+    "producto": "PAPAS",
+    "fecha": "2026-04-26T18:22:00.022Z",
+    "tipo": "SALIDA",
+    "documento": "PROD-1777227720022",
+    "cantidad": 6,
+    "costoUnitario": 3.5,
+    "valorTotal": 21,
+    "stockAnterior": 30,
+    "stockNuevo": 24,
+    "observaciones": "Producción de PAPAS FRITAS"
+  }
+]

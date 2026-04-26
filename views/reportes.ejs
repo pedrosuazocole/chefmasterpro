@@ -125,7 +125,7 @@
                 <h3>📦 Inventario Completo</h3>
                 <button class="btn btn-sm" onclick="exportarExcel('inventario', 'inventario')" 
                         style="background: #21c354; color: white;">
-                    📊 Exportar Excel
+                    📊 Exportar CSV/Excel
                 </button>
             </div>
             <div class="card-body">
@@ -137,6 +137,7 @@
                             <th>Stock</th>
                             <th>Unidad</th>
                             <th>Costo Unit.</th>
+                            <th style="background:#fff3cd;color:#856404;">Costo Promedio</th>
                             <th>Valor Total</th>
                         </tr>
                     </thead>
@@ -150,13 +151,16 @@
                             <td><%= item.stock.toFixed(2) %></td>
                             <td><%= item.unidad %></td>
                             <td>L. <%= item.costoUnitario.toFixed(2) %></td>
+                            <td style="background:#fffbf0;font-weight:bold;color:#856404;">
+                                L. <%= item.costoUnitario.toFixed(4) %>
+                            </td>
                             <td><strong>L. <%= valorTotal.toFixed(2) %></strong></td>
                         </tr>
                         <% }); %>
                     </tbody>
                     <tfoot>
                         <tr style="background: var(--light); font-weight: bold;">
-                            <td colspan="5" style="text-align: right;">TOTAL INVENTARIO:</td>
+                            <td colspan="6" style="text-align: right;">TOTAL INVENTARIO:</td>
                             <td>L. <%= totalInventario.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') %></td>
                         </tr>
                     </tfoot>
@@ -195,6 +199,76 @@
             </div>
         </div>
         <% } %>
+
+        <!-- SECCIÓN MOVIMIENTOS DE KARDEX -->
+        <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <h3>📋 Movimientos de Kardex</h3>
+                <button class="btn btn-sm" onclick="exportarExcel('kardex','kardex')"
+                        style="background:#21c354;color:white;">📊 Exportar CSV/Excel</button>
+            </div>
+            <div class="card-body">
+                <% if (kardex && kardex.length > 0) { %>
+                <div class="table-container">
+                    <table class="table" style="font-size:0.9rem;">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Fecha</th>
+                                <th>Producto</th>
+                                <th>Tipo</th>
+                                <th>Documento</th>
+                                <th style="color:#21c354;">📥 Entrada</th>
+                                <th style="color:#ff4b4b;">📤 Salida</th>
+                                <th>Costo Unit.</th>
+                                <th>Saldo</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% kardex.forEach((k, idx) => {
+                                const esEntrada = k.tipo === 'ENTRADA';
+                            %>
+                            <tr style="background:<%= esEntrada ? '#f0fff4' : '#fff5f5' %>;">
+                                <td style="color:#999;font-size:0.82rem;"><%= idx + 1 %></td>
+                                <td style="white-space:nowrap;font-size:0.85rem;">
+                                    <%= new Date(k.fecha).toLocaleDateString('es-HN') %><br>
+                                    <small style="color:#999;"><%= new Date(k.fecha).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'}) %></small>
+                                </td>
+                                <td><strong><%= k.producto %></strong></td>
+                                <td>
+                                    <span style="background:<%= esEntrada ? '#21c354' : '#ff4b4b' %>;color:white;
+                                                 padding:0.2rem 0.55rem;border-radius:12px;font-size:0.8rem;">
+                                        <%= esEntrada ? '📥 ENTRADA' : '📤 SALIDA' %>
+                                    </span>
+                                </td>
+                                <td><code style="background:#f0f4ff;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.8rem;"><%= k.documento %></code></td>
+                                <td style="color:#21c354;font-weight:bold;text-align:center;">
+                                    <%= esEntrada ? parseFloat(k.cantidad).toFixed(2) : '—' %>
+                                </td>
+                                <td style="color:#ff4b4b;font-weight:bold;text-align:center;">
+                                    <%= !esEntrada ? parseFloat(k.cantidad).toFixed(2) : '—' %>
+                                </td>
+                                <td style="text-align:right;">L. <%= parseFloat(k.costoUnitario||0).toFixed(2) %></td>
+                                <td style="text-align:right;"><strong><%= parseFloat(k.stockNuevo||0).toFixed(2) %></strong></td>
+                                <td style="font-size:0.82rem;color:#666;"><%= k.observaciones || '—' %></td>
+                            </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+                <p style="margin-top:0.5rem;font-size:0.82rem;color:#999;text-align:right;">
+                    Total movimientos: <%= kardex.length %> · Orden cronológico ascendente
+                </p>
+                <% } else { %>
+                <div style="text-align:center;padding:2rem;color:#999;">
+                    <div style="font-size:2.5rem;">📋</div>
+                    <p>No hay movimientos de Kardex registrados aún.</p>
+                </div>
+                <% } %>
+            </div>
+        </div>
+
     </main>
     
     <script src="/js/main.js"></script>

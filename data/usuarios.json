@@ -1,14 +1,14 @@
 [
   {
-    "id": 1,
+    "id": "1",
     "username": "admin",
     "password": "$2a$10$tXsHtNA5JPkD8bJgBhqCKeKK41XQsA3lEbnpFqVcHU092mbLYCGBO",
     "nombreCompleto": "Administrador del Sistema",
     "rol": "admin",
     "activo": true,
     "intentosFallidos": 0,
-    "createdAt": "2026-04-19T00:00:00.000Z",
     "bloqueadoHasta": null,
-    "ultimoAcceso": "2026-04-20T21:26:25.037Z"
+    "createdAt": "2026-04-01T00:00:00.000Z",
+    "ultimoAcceso": "2026-04-26T18:49:31.058Z"
   }
 ]

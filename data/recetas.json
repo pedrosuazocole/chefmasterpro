@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "id": "id_1777227720021_oghbx",
+    "plato": "PAPAS FRITAS",
+    "detalleReceta": "[{\"Codigo\":\"001\",\"Nombre\":\"PAPAS\",\"Unidad\":\"Libra\",\"Cantidad\":2,\"CostoUnitario\":3.5,\"Costo_U\":3.5,\"Subtotal\":7}]",
+    "costoTotalPlato": 7,
+    "precioVenta": 35,
+    "valorUtilidad": 28,
+    "margenUtilidad": 0.8,
+    "margenObjetivo": 0.7,
+    "activo": true,
+    "createdAt": "2026-04-26T18:22:00.021Z"
+  }
+]

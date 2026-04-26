@@ -33,7 +33,8 @@ const FILES = {
     auditoria: path.join(DATA_DIR, 'auditoria.json'),
     productoTerminado: path.join(DATA_DIR, 'producto-terminado.json'),
     movimientosProducto: path.join(DATA_DIR, 'movimientos-producto.json'),
-    kardex: path.join(DATA_DIR, 'kardex.json')
+    kardex: path.join(DATA_DIR, 'kardex.json'),
+    historialPrecios: path.join(DATA_DIR, 'historial-precios.json')
 };
 
 // ==================================================
@@ -106,7 +107,7 @@ function inicializarDatos() {
     }
 
     // Otros archivos vacíos
-    ['historial', 'recetas', 'produccion', 'auditoria', 'productoTerminado', 'movimientosProducto', 'kardex'].forEach(key => {
+    ['historial', 'recetas', 'produccion', 'auditoria', 'productoTerminado', 'movimientosProducto', 'kardex', 'historialPrecios'].forEach(key => {
         if (!fs.existsSync(FILES[key])) {
             guardarDatos(FILES[key], []);
         }
@@ -280,6 +281,18 @@ app.post('/catalogo/crear', requireAuth, (req, res) => {
     const { nombre, unidad } = req.body;
     
     const catalogo = leerDatos(FILES.catalogo);
+
+    // Validar nombre duplicado (insensible a mayúsculas)
+    const nombreNormalizado = nombre.toUpperCase().trim();
+    const nombreDuplicado = catalogo.find(c =>
+        (c.ingrediente || c.nombre || '').toUpperCase().trim() === nombreNormalizado
+    );
+    if (nombreDuplicado) {
+        return res.status(400).json({
+            error: `Ya existe un artículo con el nombre "${nombreNormalizado}" (Código: ${nombreDuplicado.codigo})`
+        });
+    }
+
     const ultimoCodigo = catalogo.length > 0 
         ? Math.max(...catalogo.map(c => parseInt(c.codigo))) 
         : 0;
@@ -289,7 +302,8 @@ app.post('/catalogo/crear', requireAuth, (req, res) => {
     const nuevoArticulo = {
         id: Date.now(),
         codigo: nuevoCodigo,
-        nombre: nombre.toUpperCase(),
+        nombre: nombreNormalizado,
+        ingrediente: nombreNormalizado,
         unidad,
         activo: true,
         createdAt: new Date().toISOString()
@@ -302,7 +316,7 @@ app.post('/catalogo/crear', requireAuth, (req, res) => {
     const inventario = leerDatos(FILES.inventario);
     inventario.push({
         codigo: nuevoCodigo,
-        ingrediente: nombre.toUpperCase(),
+        ingrediente: nombreNormalizado,
         unidad,
         stock: 0,
         costoUnitario: 0,
@@ -319,25 +333,86 @@ app.post('/catalogo/actualizar/:id', requireAuth, (req, res) => {
     
     const catalogo = leerDatos(FILES.catalogo);
     const articulo = catalogo.find(c => c.id === parseInt(id));
-    
-    if (articulo) {
-        articulo.nombre = nombre.toUpperCase();
-        articulo.unidad = unidad;
-        guardarDatos(FILES.catalogo, catalogo);
-        
-        // Actualizar inventario
-        const inventario = leerDatos(FILES.inventario);
-        const inv = inventario.find(i => i.codigo === articulo.codigo);
-        if (inv) {
-            inv.ingrediente = nombre.toUpperCase();
-            inv.unidad = unidad;
-            guardarDatos(FILES.inventario, inventario);
-        }
-        
-        res.json({ success: true });
-    } else {
-        res.status(404).json({ error: 'Artículo no encontrado' });
+
+    if (!articulo) {
+        return res.status(404).json({ error: 'Artículo no encontrado' });
     }
+
+    // Validar nombre duplicado — excluir el mismo artículo que se está editando
+    const nombreNormalizado = nombre.toUpperCase().trim();
+    const nombreDuplicado = catalogo.find(c =>
+        c.id !== parseInt(id) &&
+        (c.ingrediente || c.nombre || '').toUpperCase().trim() === nombreNormalizado
+    );
+    if (nombreDuplicado) {
+        return res.status(400).json({
+            error: `Ya existe otro artículo con el nombre "${nombreNormalizado}" (Código: ${nombreDuplicado.codigo})`
+        });
+    }
+
+    articulo.nombre     = nombreNormalizado;
+    articulo.ingrediente= nombreNormalizado;
+    articulo.unidad     = unidad;
+    guardarDatos(FILES.catalogo, catalogo);
+
+    // Actualizar inventario
+    const inventario = leerDatos(FILES.inventario);
+    const inv = inventario.find(i => i.codigo === articulo.codigo);
+    if (inv) {
+        inv.ingrediente = nombreNormalizado;
+        inv.unidad      = unidad;
+        guardarDatos(FILES.inventario, inventario);
+    }
+
+    res.json({ success: true });
+});
+
+// Eliminar artículo del catálogo
+app.delete('/catalogo/:id', requireAuth, (req, res) => {
+    const id = parseInt(req.params.id);
+
+    const catalogo = leerDatos(FILES.catalogo);
+    const index = catalogo.findIndex(c => c.id === id);
+
+    if (index === -1) {
+        return res.status(404).json({ error: 'Artículo no encontrado' });
+    }
+
+    const articulo = catalogo[index];
+
+    // Verificar que no tenga stock antes de eliminar
+    const inventario = leerDatos(FILES.inventario);
+    const inv = inventario.find(i => i.codigo === articulo.codigo);
+    if (inv && parseFloat(inv.stock) > 0) {
+        return res.status(400).json({
+            error: `No se puede eliminar: "${articulo.ingrediente || articulo.nombre}" tiene stock de ${inv.stock} ${inv.unidad}`
+        });
+    }
+
+    // Eliminar del catálogo
+    catalogo.splice(index, 1);
+    guardarDatos(FILES.catalogo, catalogo);
+
+    // Eliminar del inventario también
+    if (inv) {
+        const invIndex = inventario.findIndex(i => i.codigo === articulo.codigo);
+        if (invIndex !== -1) inventario.splice(invIndex, 1);
+        guardarDatos(FILES.inventario, inventario);
+    }
+
+    // Auditoría
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({
+        id: generarId(),
+        fecha: new Date().toISOString(),
+        usuario: req.session.userId,
+        accion: 'DELETE_CATALOGO',
+        detalle: `Eliminó artículo: ${articulo.ingrediente || articulo.nombre} (${articulo.codigo})`,
+        ip: req.ip
+    });
+    guardarDatos(FILES.auditoria, auditoria);
+
+    res.json({ success: true });
 });
 
 // ==================================================
@@ -368,7 +443,9 @@ function registrarKardex(producto, tipo, documento, cantidad, costoUnitario, sto
 // ==================================================
 app.get('/inventario', requireAuth, (req, res) => {
     const catalogo = leerDatos(FILES.catalogo).filter(c => c.activo);
-    const historial = leerDatos(FILES.historial);
+    // T2: orden cronológico ascendente — más antiguo primero, más reciente al final
+    const historial = leerDatos(FILES.historial)
+        .sort((a, b) => new Date(a.createdAt || a.fechaFactura) - new Date(b.createdAt || b.fechaFactura));
     res.render('inventario', { catalogo, historial });
 });
 
@@ -462,6 +539,85 @@ app.delete('/inventario/compra/:id', requireAuth, (req, res) => {
     res.json({ success: true });
 });
 
+// T1: Modificar compra del historial + recalcular costo promedio
+app.put('/inventario/compra/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const { cantidad, costoUnitario, unidad, proveedor } = req.body;
+
+    if (!cantidad || !costoUnitario || cantidad <= 0 || costoUnitario <= 0) {
+        return res.status(400).json({ error: 'Cantidad y Costo Unitario deben ser mayores a 0' });
+    }
+
+    const historial  = leerDatos(FILES.historial);
+    const inventario = leerDatos(FILES.inventario);
+    const registro   = historial.find(h => h.id === id);
+
+    if (!registro) return res.status(404).json({ error: 'Registro no encontrado' });
+
+    const cantAnterior   = parseFloat(registro.cantidad);
+    const costoAnterior  = parseFloat(registro.costoUnitario);
+    const cantNueva      = parseFloat(cantidad);
+    const costoNuevo     = parseFloat(costoUnitario);
+
+    // Actualizar historial
+    registro.cantidad      = cantNueva;
+    registro.costoUnitario = costoNuevo;
+    registro.costoTotal    = cantNueva * costoNuevo;
+    registro.unidad        = unidad  || registro.unidad;
+    registro.proveedor     = proveedor !== undefined ? proveedor : registro.proveedor;
+    registro.updatedAt     = new Date().toISOString();
+    guardarDatos(FILES.historial, historial);
+
+    // T3: Recalcular costo promedio del insumo en inventario
+    const inv = inventario.find(i => i.codigo === registro.codigo);
+    if (inv) {
+        // Revertir compra anterior y aplicar la nueva
+        const stockSinEstaCompra = inv.stock - cantAnterior;
+        const valorSinEstaCompra = (stockSinEstaCompra * inv.costoUnitario) - (cantAnterior * costoAnterior) + (cantAnterior * costoAnterior);
+        // Recalcular desde el historial completo para máxima precisión
+        const historialInsumo = historial.filter(h => h.codigo === registro.codigo);
+        let stockTotal = 0;
+        let valorTotal = 0;
+        historialInsumo.forEach(h => {
+            stockTotal += parseFloat(h.cantidad || 0);
+            valorTotal += parseFloat(h.costoTotal || 0);
+        });
+        inv.stock         = stockSinEstaCompra + cantNueva;
+        inv.costoUnitario = inv.stock > 0
+            ? ((stockSinEstaCompra * inv.costoUnitario) - (cantAnterior * costoAnterior) + (cantNueva * costoNuevo)) / inv.stock
+            : costoNuevo;
+        guardarDatos(FILES.inventario, inventario);
+
+        // Recalcular recetas que usan este insumo
+        const recetas = leerDatos(FILES.recetas);
+        recetas.forEach(r => {
+            const detalle = JSON.parse(r.detalleReceta);
+            let cambiado = false;
+            const nuevoDetalle = detalle.map(ing => {
+                if (ing.Codigo === registro.codigo) {
+                    cambiado = true;
+                    return { ...ing, CostoUnitario: inv.costoUnitario, Costo_U: inv.costoUnitario, Subtotal: ing.Cantidad * inv.costoUnitario };
+                }
+                return ing;
+            });
+            if (cambiado) {
+                r.detalleReceta   = JSON.stringify(nuevoDetalle);
+                r.costoTotalPlato = nuevoDetalle.reduce((s, i) => s + i.Subtotal, 0);
+                r.valorUtilidad   = r.precioVenta - r.costoTotalPlato;
+                r.margenUtilidad  = r.valorUtilidad / r.precioVenta;
+            }
+        });
+        guardarDatos(FILES.recetas, recetas);
+    }
+
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
+        accion: 'UPDATE_COMPRA', detalle: `Modificó compra ${id}: cant ${cantAnterior}→${cantNueva}, costo ${costoAnterior}→${costoNuevo}`, ip: req.ip });
+    guardarDatos(FILES.auditoria, auditoria);
+
+    res.json({ success: true });
+});
+
 // ==================================================
 // FUNCIÓN PARA RECETAS INTELIGENTES
 // ==================================================
@@ -524,13 +680,25 @@ function verificarCambiosCostos(receta) {
 // RUTAS DE RECETAS
 // ==================================================
 app.get('/recetas', requireAuth, (req, res) => {
-    const recetas = leerDatos(FILES.recetas);
+    const recetas    = leerDatos(FILES.recetas);
     const inventario = leerDatos(FILES.inventario);
     
-    // Agregar alertas a cada receta
+    // Agregar alertas + detalleExpandido con costo promedio actual por ingrediente
     const recetasConAlertas = recetas.map(r => {
         const alerta = verificarCambiosCostos(r);
-        return { ...r, alerta };
+        const detalle = JSON.parse(r.detalleReceta);
+        const detalleExpandido = detalle.map(ing => {
+            const inv = inventario.find(i => i.codigo === ing.Codigo);
+            const costoPromedio = inv ? inv.costoUnitario : parseFloat(ing.Costo_U || ing.CostoUnitario || 0);
+            const cantidad      = parseFloat(ing.Cantidad);
+            return {
+                ...ing,
+                Unidad:       ing.Unidad || (inv ? inv.unidad : ''),
+                costoPromedio,
+                totalLinea:   cantidad * costoPromedio
+            };
+        });
+        return { ...r, alerta, detalleExpandido };
     });
     
     res.render('recetas', { recetas: recetasConAlertas, inventario });
@@ -602,6 +770,7 @@ app.post('/recetas/actualizar-costos/:plato', requireAuth, (req, res) => {
     
     // Actualizar receta
     receta.detalleReceta = JSON.stringify(detalleActualizado);
+    const costoAnterior = receta.costoTotalPlato;
     receta.costoTotalPlato = costoNuevo;
     receta.valorUtilidad = receta.precioVenta - costoNuevo;
     receta.margenUtilidad = receta.valorUtilidad / receta.precioVenta;
@@ -609,11 +778,84 @@ app.post('/recetas/actualizar-costos/:plato', requireAuth, (req, res) => {
     
     guardarDatos(FILES.recetas, recetas);
     
+    // Guardar en historial de precios
+    const historialPrecios = leerDatos(FILES.historialPrecios);
+    historialPrecios.push({
+        id: generarId(),
+        plato: receta.plato,
+        fecha: new Date().toISOString(),
+        tipo: 'ACTUALIZACION_COSTO',
+        costoAnterior: parseFloat(costoAnterior),
+        costoNuevo: parseFloat(costoNuevo),
+        precioVenta: parseFloat(receta.precioVenta),
+        margenNuevo: parseFloat((receta.margenUtilidad * 100).toFixed(2)),
+        usuario: req.session.userId
+    });
+    guardarDatos(FILES.historialPrecios, historialPrecios);
+    
     res.json({ 
         success: true, 
         costoNuevo,
         margenNuevo: (receta.margenUtilidad * 100).toFixed(1)
     });
+});
+
+// T4: Edición completa de receta (resumen + ingredientes)
+app.put('/recetas/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const { plato, ingredientes, precioVenta, margenObjetivo } = req.body;
+
+    const recetas   = leerDatos(FILES.recetas);
+    const inventario = leerDatos(FILES.inventario);
+    const receta    = recetas.find(r => r.id === id);
+
+    if (!receta) return res.status(404).json({ error: 'Receta no encontrada' });
+
+    // Reconstruir detalle con costo promedio actual del inventario
+    const detalleReceta = ingredientes.map(ing => {
+        const inv = inventario.find(i => i.codigo === ing.codigo);
+        const costoActual = inv ? inv.costoUnitario : parseFloat(ing.costoUnitario || 0);
+        return {
+            Codigo:       ing.codigo,
+            Nombre:       ing.nombre,
+            Unidad:       ing.unidad || '',
+            Cantidad:     parseFloat(ing.cantidad),
+            CostoUnitario: costoActual,
+            Costo_U:      costoActual,
+            Subtotal:     parseFloat(ing.cantidad) * costoActual
+        };
+    });
+
+    const costoTotal    = detalleReceta.reduce((s, i) => s + i.Subtotal, 0);
+    const pv            = parseFloat(precioVenta);
+    const valorUtilidad = pv - costoTotal;
+    const margenUt      = pv > 0 ? valorUtilidad / pv : 0;
+
+    const platoAnterior   = receta.plato;
+    receta.plato          = (plato || receta.plato).toUpperCase();
+    receta.detalleReceta  = JSON.stringify(detalleReceta);
+    receta.costoTotalPlato = costoTotal;
+    receta.precioVenta    = pv;
+    receta.valorUtilidad  = valorUtilidad;
+    receta.margenUtilidad = margenUt;
+    receta.margenObjetivo = parseFloat(margenObjetivo || receta.margenObjetivo || 0.7);
+    receta.updatedAt      = new Date().toISOString();
+
+    guardarDatos(FILES.recetas, recetas);
+
+    // Historial de precios si cambió el costo
+    const historialPrecios = leerDatos(FILES.historialPrecios);
+    historialPrecios.push({ id: generarId(), plato: receta.plato, fecha: new Date().toISOString(),
+        tipo: 'EDICION_COMPLETA', costoAnterior: receta.costoTotalPlato, costoNuevo: costoTotal,
+        precioVenta: pv, margenNuevo: parseFloat((margenUt*100).toFixed(2)), usuario: req.session.userId });
+    guardarDatos(FILES.historialPrecios, historialPrecios);
+
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
+        accion: 'UPDATE_RECETA', detalle: `Editó receta: ${platoAnterior}`, ip: req.ip });
+    guardarDatos(FILES.auditoria, auditoria);
+
+    res.json({ success: true });
 });
 
 // Eliminar receta
@@ -674,6 +916,22 @@ app.put('/recetas/:id/precio', requireAuth, (req, res) => {
     
     guardarDatos(FILES.recetas, recetas);
     
+    // Guardar en historial de precios
+    const historialPrecios = leerDatos(FILES.historialPrecios);
+    historialPrecios.push({
+        id: generarId(),
+        plato: receta.plato,
+        fecha: new Date().toISOString(),
+        tipo: 'CAMBIO_PRECIO_VENTA',
+        costoAnterior: parseFloat(receta.costoTotalPlato),
+        costoNuevo: parseFloat(receta.costoTotalPlato),
+        precioVentaAnterior: parseFloat(precioAnterior),
+        precioVenta: parseFloat(precioVenta),
+        margenNuevo: parseFloat((receta.margenUtilidad * 100).toFixed(2)),
+        usuario: req.session.userId
+    });
+    guardarDatos(FILES.historialPrecios, historialPrecios);
+    
     // Auditoría
     const auditoria = leerDatos(FILES.auditoria);
     auditoria.push({
@@ -689,13 +947,25 @@ app.put('/recetas/:id/precio', requireAuth, (req, res) => {
     res.json({ success: true, nuevoPrecio: precioVenta });
 });
 
+// API: Historial de precios por plato
+app.get('/api/historial-precios/:plato', requireAuth, (req, res) => {
+    const { plato } = req.params;
+    const historialPrecios = leerDatos(FILES.historialPrecios);
+    const resultado = historialPrecios
+        .filter(h => h.plato === decodeURIComponent(plato))
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
+    res.json(resultado);
+});
+
 // ==================================================
 // RUTAS DE PRODUCCIÓN
 // ==================================================
 app.get('/produccion', requireAuth, (req, res) => {
-    const recetas = leerDatos(FILES.recetas);
+    const recetas    = leerDatos(FILES.recetas);
     const inventario = leerDatos(FILES.inventario);
-    const produccion = leerDatos(FILES.produccion);
+    // Orden ascendente: más antiguo primero, igual que catálogo
+    const produccion = leerDatos(FILES.produccion)
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
     res.render('produccion', { recetas, inventario, produccion });
 });
 
@@ -725,6 +995,8 @@ app.post('/produccion/procesar', requireAuth, (req, res) => {
     }
     
     // Descontar stock y registrar en Kardex
+    const idOperacion = `PROD-${Date.now()}`;
+    
     detalleReceta.forEach(ing => {
         const necesario = parseFloat(ing.Cantidad) * parseInt(cantidad);
         const inv = inventario.find(i => i.codigo === ing.Codigo);
@@ -750,7 +1022,6 @@ app.post('/produccion/procesar', requireAuth, (req, res) => {
     
     // Registrar producción
     const produccion = leerDatos(FILES.produccion);
-    const idOperacion = `PROD-${Date.now()}`;
     
     produccion.push({
         id: generarId(),
@@ -838,6 +1109,128 @@ app.post('/produccion/eliminar/:id', requireAuth, (req, res) => {
     res.json({ success: true });
 });
 
+// T5: Editar producción con recálculo de existencias
+app.put('/produccion/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const { cantidad } = req.body;
+    const cantNueva = parseInt(cantidad);
+    if (!cantNueva || cantNueva < 1) return res.status(400).json({ error: 'Cantidad inválida' });
+
+    const produccion = leerDatos(FILES.produccion);
+    const prod = produccion.find(p => p.id === id);
+    if (!prod) return res.status(404).json({ error: 'Producción no encontrada' });
+
+    const cantAnterior  = parseInt(prod.cantidad);
+    const diferencia    = cantNueva - cantAnterior; // positivo = más producción, negativo = menos
+    const detalle       = JSON.parse(prod.detalle);
+    const inventario    = leerDatos(FILES.inventario);
+    const recetas       = leerDatos(FILES.recetas);
+    const receta        = recetas.find(r => r.plato === prod.plato);
+
+    // Verificar stock si se aumenta producción
+    if (diferencia > 0) {
+        for (const ing of detalle) {
+            const necesario = parseFloat(ing.Cantidad) * diferencia;
+            const inv = inventario.find(i => i.codigo === ing.Codigo);
+            if (!inv || inv.stock < necesario) {
+                return res.status(400).json({ error: `Stock insuficiente de ${ing.Nombre}` });
+            }
+        }
+    }
+
+    // Ajustar inventario según diferencia
+    detalle.forEach(ing => {
+        const ajuste = parseFloat(ing.Cantidad) * diferencia;
+        const inv = inventario.find(i => i.codigo === ing.Codigo);
+        if (inv) {
+            const stockAnt = inv.stock;
+            inv.stock -= ajuste; // si diferencia<0 devuelve stock
+            registrarKardex(inv.ingrediente,
+                diferencia > 0 ? 'SALIDA' : 'ENTRADA',
+                `EDIT-${prod.idOperacion}`,
+                Math.abs(ajuste), inv.costoUnitario, stockAnt, inv.stock,
+                `Edición producción ${prod.plato}`);
+        }
+    });
+    guardarDatos(FILES.inventario, inventario);
+
+    // Ajustar producto terminado
+    const productoTerminado = leerDatos(FILES.productoTerminado);
+    const pt = productoTerminado.find(p => p.plato === prod.plato);
+    if (pt) {
+        const ptAnt = pt.cantidad;
+        pt.cantidad += diferencia;
+        if (pt.cantidad < 0) pt.cantidad = 0;
+        const movimientos = leerDatos(FILES.movimientosProducto);
+        movimientos.push({ id: generarId(), plato: prod.plato,
+            tipo: diferencia > 0 ? 'ENTRADA' : 'SALIDA',
+            cantidad: Math.abs(diferencia), origen: `Edición producción ${prod.idOperacion}`,
+            fecha: new Date().toISOString(), usuarioId: req.session.userId,
+            stockAnterior: ptAnt, stockNuevo: pt.cantidad });
+        guardarDatos(FILES.movimientosProducto, movimientos);
+        guardarDatos(FILES.productoTerminado, productoTerminado);
+    }
+
+    // Actualizar registro de producción
+    prod.cantidad       = cantNueva;
+    prod.costoProduccion = receta ? receta.costoTotalPlato * cantNueva : prod.costoProduccion;
+    prod.updatedAt      = new Date().toISOString();
+    guardarDatos(FILES.produccion, produccion);
+
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
+        accion: 'UPDATE_PRODUCCION', detalle: `${prod.plato}: ${cantAnterior}→${cantNueva} uds`, ip: req.ip });
+    guardarDatos(FILES.auditoria, auditoria);
+
+    res.json({ success: true });
+});
+
+// T5: Exportar historial de producción a CSV
+app.get('/api/exportar/produccion/excel', requireAuth, (req, res) => {
+    const produccion = leerDatos(FILES.produccion);
+    const cabeceras  = ['Fecha','ID Operación','Plato','Cantidad','Costo Producción (L.)'];
+    const filas = produccion.map(p => [
+        new Date(p.fecha).toLocaleDateString('es-HN'),
+        p.idOperacion || '',
+        p.plato,
+        p.cantidad,
+        parseFloat(p.costoProduccion || 0).toFixed(2)
+    ]);
+    const csv = generarCSV(cabeceras, filas);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=produccion_${new Date().toISOString().split('T')[0]}.csv`);
+    res.send(csv);
+});
+
+// T5: Exportar producción a HTML imprimible (PDF desde navegador)
+app.get('/api/exportar/produccion/pdf', requireAuth, (req, res) => {
+    const produccion = leerDatos(FILES.produccion);
+    const fecha = new Date().toLocaleDateString('es-HN');
+    const totalCosto = produccion.reduce((s,p)=>s+parseFloat(p.costoProduccion||0),0);
+    const filas = produccion.map(p=>`<tr>
+        <td>${new Date(p.fecha).toLocaleDateString('es-HN')}</td>
+        <td><code>${p.idOperacion||''}</code></td>
+        <td><strong>${p.plato}</strong></td>
+        <td style="text-align:center">${p.cantidad}</td>
+        <td style="text-align:right">L. ${parseFloat(p.costoProduccion||0).toFixed(2)}</td>
+    </tr>`).join('');
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+    <title>Producción - Chef Master Pro</title>
+    <style>body{font-family:Arial,sans-serif;margin:30px}h1{color:#ff4b4b;border-bottom:3px solid #ff4b4b;padding-bottom:8px}
+    table{width:100%;border-collapse:collapse;margin-top:16px}th{background:#ff4b4b;color:white;padding:10px;text-align:left}
+    td{padding:8px 10px;border-bottom:1px solid #ddd}tfoot td{font-weight:bold;background:#f9f9f9}
+    .footer{margin-top:20px;font-size:0.85rem;color:#999;text-align:right}</style></head><body>
+    <h1>🍽️ CHEF MASTER PRO</h1>
+    <p><strong>Historial de Producción</strong> | Fecha: ${fecha} | Total registros: ${produccion.length}</p>
+    <table><thead><tr><th>Fecha</th><th>ID Operación</th><th>Plato</th><th>Cantidad</th><th>Costo Producción</th></tr></thead>
+    <tbody>${filas}</tbody>
+    <tfoot><tr><td colspan="4">TOTAL</td><td style="text-align:right">L. ${totalCosto.toFixed(2)}</td></tr></tfoot></table>
+    <div class="footer">Instituto Tecnológico Santo Tomás · Chef Master Pro v1.6</div>
+    <script>window.onload=()=>window.print();</script></body></html>`;
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
+});
+
 // ==================================================
 // RUTAS DE KARDEX
 // ==================================================
@@ -859,55 +1252,54 @@ app.get('/api/kardex/:producto', requireAuth, (req, res) => {
     res.json(movimientos);
 });
 
-app.get('/api/exportar/kardex/excel', requireAuth, async (req, res) => {
+// ==================================================
+// FUNCIÓN HELPER: Generar CSV sin dependencias
+// ==================================================
+function generarCSV(cabeceras, filas) {
+    const escapar = val => {
+        const str = String(val == null ? '' : val);
+        return str.includes(',') || str.includes('"') || str.includes('\n')
+            ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+    const lineas = [
+        cabeceras.map(escapar).join(','),
+        ...filas.map(fila => fila.map(escapar).join(','))
+    ];
+    return '\uFEFF' + lineas.join('\r\n'); // BOM para Excel en español
+}
+
+// ==================================================
+// RUTAS DE EXPORTACIÓN (CSV — compatible con Excel)
+// ==================================================
+
+// Exportar Kardex a CSV
+app.get('/api/exportar/kardex/excel', requireAuth, (req, res) => {
     try {
         const kardex = leerDatos(FILES.kardex);
-        const ExcelJS = (await import('exceljs')).default;
-        
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Kardex');
-        
-        worksheet.columns = [
-            { header: 'Fecha', key: 'fecha', width: 12 },
-            { header: 'Producto', key: 'producto', width: 20 },
-            { header: 'Tipo', key: 'tipo', width: 10 },
-            { header: 'Documento', key: 'documento', width: 15 },
-            { header: 'Entrada', key: 'entrada', width: 10 },
-            { header: 'Salida', key: 'salida', width: 10 },
-            { header: 'Costo Unit.', key: 'costo', width: 12 },
-            { header: 'Saldo', key: 'saldo', width: 10 },
-            { header: 'Valor', key: 'valor', width: 12 }
-        ];
-        
-        worksheet.getRow(1).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFF4B4B' }
-        };
-        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-        
-        kardex.forEach(k => {
-            worksheet.addRow({
-                fecha: new Date(k.fecha).toLocaleDateString('es-HN'),
-                producto: k.producto,
-                tipo: k.tipo,
-                documento: k.documento,
-                entrada: k.tipo === 'ENTRADA' ? k.cantidad : '',
-                salida: k.tipo === 'SALIDA' ? k.cantidad : '',
-                costo: parseFloat(k.costoUnitario).toFixed(2),
-                saldo: parseFloat(k.stockNuevo).toFixed(2),
-                valor: parseFloat(k.valorTotal).toFixed(2)
-            });
+        const cabeceras = ['Fecha','Producto','Tipo','Documento','Entrada','Salida','Costo Unit.','Costo Promedio','Saldo','Valor'];
+        const filas = kardex.map(k => {
+            const cant  = parseFloat(k.cantidad || 0);
+            const costo = parseFloat(k.costoUnitario || 0);
+            const prom  = cant > 0 ? (parseFloat(k.valorTotal || cant*costo) / cant) : costo;
+            return [
+                new Date(k.fecha).toLocaleDateString('es-HN'),
+                k.producto,
+                k.tipo,
+                k.documento,
+                k.tipo === 'ENTRADA' ? cant.toFixed(2) : '',
+                k.tipo === 'SALIDA'  ? cant.toFixed(2) : '',
+                costo.toFixed(2),
+                prom.toFixed(2),
+                parseFloat(k.stockNuevo || 0).toFixed(2),
+                parseFloat(k.valorTotal || 0).toFixed(2)
+            ];
         });
-        
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=kardex_${new Date().toISOString().split('T')[0]}.xlsx`);
-        
-        await workbook.xlsx.write(res);
-        res.end();
-    } catch (error) {
-        console.error('Error:', error);
+        const csv = generarCSV(cabeceras, filas);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename=kardex_${new Date().toISOString().split('T')[0]}.csv`);
+        res.send(csv);
+    } catch (e) {
+        console.error(e);
         res.status(500).json({ error: 'Error al exportar' });
     }
 });
@@ -917,8 +1309,9 @@ app.get('/api/exportar/kardex/excel', requireAuth, async (req, res) => {
 // ==================================================
 app.get('/reportes', requireAuth, (req, res) => {
     const inventario = leerDatos(FILES.inventario);
-    const recetas = leerDatos(FILES.recetas);
+    const recetas    = leerDatos(FILES.recetas);
     const produccion = leerDatos(FILES.produccion);
+    const kardex     = leerDatos(FILES.kardex);
     
     const stockBajo = inventario.filter(i => i.stock < i.stockMinimo);
     const totalInventario = inventario.reduce((sum, i) => 
@@ -929,6 +1322,10 @@ app.get('/reportes', requireAuth, (req, res) => {
     const topRecetas = recetas
         .sort((a, b) => b.valorUtilidad - a.valorUtilidad)
         .slice(0, 5);
+
+    // Kardex: orden ascendente (más antiguo primero, igual que catálogo)
+    const kardexOrdenado = kardex
+        .sort((a, b) => new Date(a.fecha) - new Date(b.fecha));
     
     res.render('reportes', {
         inventario,
@@ -936,191 +1333,218 @@ app.get('/reportes', requireAuth, (req, res) => {
         totalInventario,
         topRecetas,
         recetas,
-        produccion
+        produccion,
+        kardex: kardexOrdenado
     });
 });
 
-// ==================================================
-// RUTAS DE EXPORTACIÓN EXCEL/PDF
-// ==================================================
-app.get('/api/exportar/recetas/excel', requireAuth, async (req, res) => {
+// Exportar Recetas a CSV
+app.get('/api/exportar/recetas/excel', requireAuth, (req, res) => {
     try {
         const recetas = leerDatos(FILES.recetas);
-        const ExcelJS = (await import('exceljs')).default;
-        
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Recetas');
-        
-        // Configurar columnas
-        worksheet.columns = [
-            { header: 'Plato', key: 'plato', width: 25 },
-            { header: 'Costo', key: 'costo', width: 12 },
-            { header: 'Precio Venta', key: 'precio', width: 12 },
-            { header: 'Utilidad', key: 'utilidad', width: 12 },
-            { header: 'Margen %', key: 'margen', width: 12 }
-        ];
-        
-        // Estilo de encabezados
-        worksheet.getRow(1).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFF4B4B' }
-        };
-        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-        worksheet.getRow(1).height = 25;
-        
-        // Agregar datos
-        recetas.forEach(r => {
-            const row = worksheet.addRow({
-                plato: r.plato,
-                costo: parseFloat(r.costoTotalPlato).toFixed(2),
-                precio: parseFloat(r.precioVenta).toFixed(2),
-                utilidad: parseFloat(r.valorUtilidad).toFixed(2),
-                margen: (parseFloat(r.margenUtilidad) * 100).toFixed(1) + '%'
-            });
-            
-            // Color de fondo según margen
-            const margen = parseFloat(r.margenUtilidad) * 100;
-            const colorFondo = margen < 70 ? 'FFFFE6E6' : 'FFE6FFE6';
-            row.eachCell((cell) => {
-                cell.fill = {
-                    type: 'pattern',
-                    pattern: 'solid',
-                    fgColor: { argb: colorFondo }
-                };
-                cell.border = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
-                };
-            });
+        const cabeceras = ['Plato','Costo (L.)','Precio Venta (L.)','Utilidad (L.)','Margen %','Estado'];
+        const filas = recetas.map(r => {
+            const margen = parseFloat(r.margenUtilidad || 0) * 100;
+            return [
+                r.plato,
+                parseFloat(r.costoTotalPlato || 0).toFixed(2),
+                parseFloat(r.precioVenta || 0).toFixed(2),
+                parseFloat(r.valorUtilidad || 0).toFixed(2),
+                margen.toFixed(1) + '%',
+                margen >= 70 ? 'MARGEN OK' : 'BAJO OBJETIVO'
+            ];
         });
-        
-        // Enviar archivo
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=recetas_${new Date().toISOString().split('T')[0]}.xlsx`);
-        
-        await workbook.xlsx.write(res);
-        res.end();
-    } catch (error) {
-        console.error('Error exportando Excel:', error);
+        const csv = generarCSV(cabeceras, filas);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename=recetas_${new Date().toISOString().split('T')[0]}.csv`);
+        res.send(csv);
+    } catch (e) {
+        console.error(e);
         res.status(500).json({ error: 'Error al exportar' });
     }
 });
 
-app.get('/api/exportar/recetas/pdf', requireAuth, async (req, res) => {
+// Exportar Recetas a PDF (HTML imprimible en su lugar)
+app.get('/api/exportar/recetas/pdf', requireAuth, (req, res) => {
     try {
         const recetas = leerDatos(FILES.recetas);
-        const { jsPDF } = await import('jspdf');
-        const { default: autoTable } = await import('jspdf-autotable');
-        
-        const doc = new jsPDF();
-        
-        // Título
-        doc.setFontSize(20);
-        doc.setTextColor(255, 75, 75);
-        doc.text('CHEF MASTER PRO', 105, 15, { align: 'center' });
-        
-        doc.setFontSize(14);
-        doc.setTextColor(0, 0, 0);
-        doc.text('Reporte de Recetas', 105, 25, { align: 'center' });
-        
-        doc.setFontSize(10);
-        doc.text(`Fecha: ${new Date().toLocaleDateString('es-HN')}`, 105, 32, { align: 'center' });
-        
-        // Tabla
-        const tableData = recetas.map(r => [
-            r.plato,
-            `L. ${parseFloat(r.costoTotalPlato).toFixed(2)}`,
-            `L. ${parseFloat(r.precioVenta).toFixed(2)}`,
-            `L. ${parseFloat(r.valorUtilidad).toFixed(2)}`,
-            `${(parseFloat(r.margenUtilidad) * 100).toFixed(1)}%`
-        ]);
-        
-        autoTable(doc, {
-            startY: 40,
-            head: [['Plato', 'Costo', 'Precio Venta', 'Utilidad', 'Margen']],
-            body: tableData,
-            theme: 'grid',
-            headStyles: { 
-                fillColor: [255, 75, 75],
-                textColor: [255, 255, 255],
-                fontSize: 10,
-                fontStyle: 'bold'
-            },
-            styles: { fontSize: 9, cellPadding: 3 },
-            columnStyles: {
-                0: { cellWidth: 60 },
-                1: { halign: 'right', cellWidth: 30 },
-                2: { halign: 'right', cellWidth: 30 },
-                3: { halign: 'right', cellWidth: 30 },
-                4: { halign: 'center', cellWidth: 25 }
-            }
-        });
-        
-        // Totales
-        const finalY = doc.lastAutoTable.finalY + 10;
-        doc.setFontSize(10);
-        doc.text(`Total de recetas: ${recetas.length}`, 14, finalY);
-        
-        // Enviar PDF
-        const pdfBuffer = Buffer.from(doc.output('arraybuffer'));
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=recetas_${new Date().toISOString().split('T')[0]}.pdf`);
-        res.send(pdfBuffer);
-    } catch (error) {
-        console.error('Error exportando PDF:', error);
+        const fecha   = new Date().toLocaleDateString('es-HN');
+        const filas   = recetas.map(r => {
+            const margen  = parseFloat(r.margenUtilidad || 0) * 100;
+            const esBajo  = margen < 70;
+            const color   = esBajo ? '#ffe6e6' : '#e6ffe6';
+            const badge   = esBajo ? '<span style="color:#c00;font-weight:bold;">⚠ BAJO</span>' : '<span style="color:#080;font-weight:bold;">✓ OK</span>';
+            return `<tr style="background:${color}">
+                <td>${r.plato}</td>
+                <td style="text-align:right">L. ${parseFloat(r.costoTotalPlato||0).toFixed(2)}</td>
+                <td style="text-align:right">L. ${parseFloat(r.precioVenta||0).toFixed(2)}</td>
+                <td style="text-align:right">L. ${parseFloat(r.valorUtilidad||0).toFixed(2)}</td>
+                <td style="text-align:center">${margen.toFixed(1)}%</td>
+                <td style="text-align:center">${badge}</td>
+            </tr>`;
+        }).join('');
+        const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+        <title>Recetas - Chef Master Pro</title>
+        <style>
+            body{font-family:Arial,sans-serif;margin:30px;color:#333}
+            h1{color:#ff4b4b;border-bottom:3px solid #ff4b4b;padding-bottom:8px}
+            table{width:100%;border-collapse:collapse;margin-top:16px}
+            th{background:#ff4b4b;color:white;padding:10px;text-align:left}
+            td{padding:8px 10px;border-bottom:1px solid #ddd}
+            .footer{margin-top:20px;font-size:0.85rem;color:#999;text-align:right}
+        </style></head><body>
+        <h1>🍽️ CHEF MASTER PRO</h1>
+        <p><strong>Reporte de Recetas</strong> &nbsp;|&nbsp; Fecha: ${fecha} &nbsp;|&nbsp; Total: ${recetas.length} recetas</p>
+        <table>
+            <thead><tr><th>Plato</th><th>Costo</th><th>Precio Venta</th><th>Utilidad</th><th>Margen</th><th>Estado</th></tr></thead>
+            <tbody>${filas}</tbody>
+        </table>
+        <div class="footer">Instituto Tecnológico Santo Tomás &nbsp;·&nbsp; Chef Master Pro v1.6</div>
+        <script>window.onload=()=>window.print();</script>
+        </body></html>`;
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.send(html);
+    } catch (e) {
+        console.error(e);
         res.status(500).json({ error: 'Error al exportar' });
     }
 });
 
-app.get('/api/exportar/inventario/excel', requireAuth, async (req, res) => {
+// Exportar Inventario a CSV
+app.get('/api/exportar/inventario/excel', requireAuth, (req, res) => {
     try {
         const inventario = leerDatos(FILES.inventario);
-        const ExcelJS = (await import('exceljs')).default;
-        
-        const workbook = new ExcelJS.Workbook();
-        const worksheet = workbook.addWorksheet('Inventario');
-        
-        worksheet.columns = [
-            { header: 'Código', key: 'codigo', width: 10 },
-            { header: 'Ingrediente', key: 'ingrediente', width: 25 },
-            { header: 'Stock', key: 'stock', width: 12 },
-            { header: 'Unidad', key: 'unidad', width: 12 },
-            { header: 'Costo Unit.', key: 'costo', width: 12 },
-            { header: 'Valor Total', key: 'valor', width: 15 }
-        ];
-        
-        worksheet.getRow(1).font = { bold: true, size: 12, color: { argb: 'FFFFFFFF' } };
-        worksheet.getRow(1).fill = {
-            type: 'pattern',
-            pattern: 'solid',
-            fgColor: { argb: 'FFFF4B4B' }
-        };
-        worksheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-        
-        inventario.forEach(i => {
-            worksheet.addRow({
-                codigo: i.codigo,
-                ingrediente: i.ingrediente,
-                stock: parseFloat(i.stock).toFixed(2),
-                unidad: i.unidad,
-                costo: parseFloat(i.costoUnitario).toFixed(2),
-                valor: (parseFloat(i.stock) * parseFloat(i.costoUnitario)).toFixed(2)
-            });
+        const cabeceras = ['Código','Ingrediente','Stock','Unidad','Costo Unitario (L.)','Costo Promedio (L.)','Valor Total (L.)','Estado'];
+        const filas = inventario.map(i => {
+            const stock = parseFloat(i.stock || 0);
+            const costo = parseFloat(i.costoUnitario || 0);
+            const min   = parseFloat(i.stockMinimo || 0);
+            return [
+                i.codigo,
+                i.ingrediente,
+                stock.toFixed(2),
+                i.unidad,
+                costo.toFixed(2),
+                costo.toFixed(2),
+                (stock * costo).toFixed(2),
+                stock < min ? 'STOCK BAJO' : 'OK'
+            ];
         });
-        
-        res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-        res.setHeader('Content-Disposition', `attachment; filename=inventario_${new Date().toISOString().split('T')[0]}.xlsx`);
-        
-        await workbook.xlsx.write(res);
-        res.end();
-    } catch (error) {
-        console.error('Error:', error);
+        const csv = generarCSV(cabeceras, filas);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename=inventario_${new Date().toISOString().split('T')[0]}.csv`);
+        res.send(csv);
+    } catch (e) {
+        console.error(e);
         res.status(500).json({ error: 'Error al exportar' });
     }
+});
+
+// Exportar Historial de Compras a CSV
+app.get('/api/exportar/historial/excel', requireAuth, (req, res) => {
+    try {
+        const historial = leerDatos(FILES.historial);
+        const cabeceras = ['Fecha','No. Factura','Proveedor','Producto','Cantidad','Unidad','Costo Unit. (L.)','Total (L.)'];
+        const filas = historial.map(h => [
+            h.fechaFactura || '',
+            h.noFactura    || '',
+            h.proveedor    || '',
+            h.producto     || '',
+            parseFloat(h.cantidad     || 0).toFixed(2),
+            h.unidad       || 'Unidad',
+            parseFloat(h.costoUnitario|| 0).toFixed(2),
+            parseFloat(h.costoTotal   || 0).toFixed(2)
+        ]);
+        const csv = generarCSV(cabeceras, filas);
+        res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+        res.setHeader('Content-Disposition', `attachment; filename=historial_compras_${new Date().toISOString().split('T')[0]}.csv`);
+        res.send(csv);
+    } catch (e) {
+        console.error(e);
+        res.status(500).json({ error: 'Error al exportar' });
+    }
+});
+
+// ==================================================
+// Exportar movimientos de Producto Terminado a CSV
+app.get('/api/exportar/movimientos-pt/excel', requireAuth, (req, res) => {
+    const movimientos = leerDatos(FILES.movimientosProducto);
+    const cabeceras   = ['Fecha','Plato','Tipo','Entrada','Salida','Stock Anterior','Stock Nuevo','Origen'];
+    const filas = movimientos.map(m => {
+        const esEntrada = m.tipo === 'ENTRADA';
+        return [
+            new Date(m.fecha).toLocaleDateString('es-HN'),
+            m.plato,
+            m.tipo,
+            esEntrada ? parseInt(m.cantidad) : '',
+            !esEntrada ? parseInt(m.cantidad) : '',
+            m.stockAnterior ?? '',
+            m.stockNuevo ?? '',
+            m.origen || m.motivo || ''
+        ];
+    });
+    const csv = generarCSV(cabeceras, filas);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=movimientos_pt_${new Date().toISOString().split('T')[0]}.csv`);
+    res.send(csv);
+});
+
+// Exportar movimientos PT a HTML imprimible (Imprimir y PDF)
+app.get('/api/exportar/movimientos-pt/pdf', requireAuth, (req, res) => {
+    const movimientos = leerDatos(FILES.movimientosProducto);
+    const fecha       = new Date().toLocaleDateString('es-HN');
+    const totEnt = movimientos.filter(m=>m.tipo==='ENTRADA').reduce((s,m)=>s+parseInt(m.cantidad||0),0);
+    const totSal = movimientos.filter(m=>m.tipo==='SALIDA').reduce((s,m)=>s+parseInt(m.cantidad||0),0);
+
+    const filas = movimientos.map(m => {
+        const esEnt   = m.tipo === 'ENTRADA';
+        const color   = esEnt ? '#f0fff4' : '#fff5f5';
+        const badgeC  = esEnt ? '#21c354' : '#ff4b4b';
+        const badge   = `<span style="background:${badgeC};color:white;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.82rem;">${m.tipo}</span>`;
+        return `<tr style="background:${color}">
+            <td style="font-size:0.85rem;">${new Date(m.fecha).toLocaleDateString('es-HN')}</td>
+            <td><strong>${m.plato}</strong></td>
+            <td>${badge}</td>
+            <td style="text-align:center;color:#21c354;font-weight:bold;">${esEnt ? parseInt(m.cantidad) : '—'}</td>
+            <td style="text-align:center;color:#ff4b4b;font-weight:bold;">${!esEnt ? parseInt(m.cantidad) : '—'}</td>
+            <td style="text-align:center;">${m.stockAnterior ?? '—'}</td>
+            <td style="text-align:center;"><strong>${m.stockNuevo ?? '—'}</strong></td>
+            <td style="font-size:0.85rem;">${m.origen || m.motivo || '—'}</td>
+        </tr>`;
+    }).join('');
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+    <title>Movimientos Producto Terminado - Chef Master Pro</title>
+    <style>
+        body{font-family:Arial,sans-serif;margin:30px;color:#333;font-size:14px}
+        h1{color:#ff4b4b;border-bottom:3px solid #ff4b4b;padding-bottom:8px;margin-bottom:4px}
+        .resumen{display:flex;gap:2rem;margin:12px 0 18px;font-size:0.9rem}
+        .res-item{background:#f8f9fa;border-radius:6px;padding:8px 16px;text-align:center}
+        .res-item strong{display:block;font-size:1.2rem}
+        table{width:100%;border-collapse:collapse;margin-top:8px}
+        th{background:#ff4b4b;color:white;padding:8px;text-align:left;font-size:0.88rem}
+        td{padding:6px 8px;border-bottom:1px solid #eee;font-size:0.88rem}
+        .footer{margin-top:20px;font-size:0.82rem;color:#999;text-align:right}
+        @media print{body{margin:15px}}
+    </style></head><body>
+    <h1>🍽️ CHEF MASTER PRO</h1>
+    <p style="margin:0;color:#666;"><strong>Movimientos de Producto Terminado</strong> &nbsp;|&nbsp; Fecha: ${fecha}</p>
+    <div class="resumen">
+        <div class="res-item"><strong style="color:#21c354;">${totEnt}</strong>Total Entradas</div>
+        <div class="res-item"><strong style="color:#ff4b4b;">${totSal}</strong>Total Salidas</div>
+        <div class="res-item"><strong style="color:#0068c9;">${totEnt - totSal}</strong>Saldo Neto</div>
+        <div class="res-item"><strong>${movimientos.length}</strong>Total Movimientos</div>
+    </div>
+    <table>
+        <thead><tr><th>Fecha</th><th>Plato</th><th>Tipo</th><th>Entrada</th><th>Salida</th><th>Stock Ant.</th><th>Stock Nuevo</th><th>Origen</th></tr></thead>
+        <tbody>${filas}</tbody>
+    </table>
+    <div class="footer">Instituto Tecnológico Santo Tomás &nbsp;·&nbsp; Chef Master Pro v1.7.5</div>
+    <script>window.onload = () => window.print();</script>
+    </body></html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
 });
 
 // ==================================================
@@ -1131,10 +1555,16 @@ app.get('/producto-terminado', requireAuth, (req, res) => {
     const recetas = leerDatos(FILES.recetas);
     const movimientos = leerDatos(FILES.movimientosProducto);
     
+    // Ordenar: primero ENTRADA luego SALIDA, dentro de cada tipo ascendente (igual que catálogo)
+    const movimientosOrdenados = [
+        ...movimientos.filter(m => m.tipo === 'ENTRADA').sort((a,b) => new Date(a.fecha) - new Date(b.fecha)),
+        ...movimientos.filter(m => m.tipo === 'SALIDA').sort((a,b) => new Date(a.fecha) - new Date(b.fecha))
+    ];
+    
     res.render('producto-terminado', { 
         productoTerminado, 
         recetas,
-        movimientos 
+        movimientos: movimientosOrdenados
     });
 });
 

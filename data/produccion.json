@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "id": "id_1777227720022_msdnl",
+    "fecha": "2026-04-26T18:22:00.022Z",
+    "idOperacion": "PROD-1777227720022",
+    "plato": "PAPAS FRITAS",
+    "cantidad": 3,
+    "detalle": "[{\"Codigo\":\"001\",\"Nombre\":\"PAPAS\",\"Unidad\":\"Libra\",\"Cantidad\":2,\"CostoUnitario\":3.5,\"Costo_U\":3.5,\"Subtotal\":7}]",
+    "costoProduccion": 21,
+    "createdAt": "2026-04-26T18:22:00.022Z"
+  }
+]

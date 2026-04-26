@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "id": "mog4yw33foirsehbw47",
+    "fecha": "2026-04-26T19:03:11.343Z",
+    "usuario": "1",
+    "accion": "DELETE_COMPRA",
+    "detalle": "Eliminó registro de compra id_1777227720020_7cz18",
+    "ip": "::1"
+  }
+]

@@ -1,79 +1,62 @@
-╔════════════════════════════════════════════════════════════╗
-║                                                            ║
-║     🍳 SISTEMA DE CONTROL DE COCINA - NODE.JS 🍳          ║
-║                                                            ║
-║           Versión Profesional 2.0 - Abril 2026            ║
-║                                                            ║
-╚════════════════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════════╗
+║           🍽️  CHEF MASTER PRO v1.6                          ║
+║           De la Compra a la Venta, Todo Bajo Control        ║
+╚══════════════════════════════════════════════════════════════╝
 
-✨ INSTALACIÓN RÁPIDA:
+═══════════════════════════════════════════════════════════════
+⚠️  REQUISITO IMPORTANTE: NODE.JS v14 o superior
+═══════════════════════════════════════════════════════════════
 
-1. Instalar Node.js desde: https://nodejs.org
-   (Descargar la versión LTS - Long Term Support)
+Si al instalar aparece error con tu versión de Node.js, 
+necesitás actualizarlo:
 
-2. Abrir terminal en esta carpeta y ejecutar:
-   npm install
+1. Descargá Node.js v18 LTS desde:
+   https://nodejs.org/es/download
 
-3. Iniciar el sistema:
-   npm start
+2. Elegí: "Windows Installer (.msi) - 64-bit"
 
-4. Abrir navegador en: http://localhost:3000
+3. Instalá normalmente (siguiente, siguiente, finalizar)
 
-5. Ingresar con:
-   Usuario: admin
-   Contraseña: admin123
+4. Cerrá y volvé a abrir el símbolo del sistema (CMD)
 
+5. Verificá con: node --version
+   (Debe mostrar v18.x.x o superior)
 
-📚 DOCUMENTACIÓN INCLUIDA:
+═══════════════════════════════════════════════════════════════
+INSTALACIÓN
+═══════════════════════════════════════════════════════════════
 
-- README.md           → Documentación técnica completa
-- INSTALACION.md      → Guía paso a paso de instalación
-- MANUAL_USUARIO.md   → Manual de uso del sistema
-- VERSION.txt         → Información de la versión
+1. Doble click en: INSTALL.bat
+2. Doble click en: START.bat
+3. Abrí el navegador en: http://localhost:3000
 
+═══════════════════════════════════════════════════════════════
+CREDENCIALES
+═══════════════════════════════════════════════════════════════
 
-🚀 INICIO RÁPIDO (WINDOWS):
+Usuario:    admin
+Contraseña: admin123
 
-  1. Doble clic en: INSTALL.bat
-  2. Esperar a que termine
-  3. Doble clic en: START.bat
+═══════════════════════════════════════════════════════════════
+NOVEDADES v1.6
+═══════════════════════════════════════════════════════════════
 
+✅ Historial de Cambios de Precio en Recetas
+   - Botón "📈 Historial de Precios" en cada receta
+   - Gráfico de líneas: Costo, Precio Venta y Margen
+   - Tabla con todos los cambios registrados
 
-🚀 INICIO RÁPIDO (MAC/LINUX):
+✅ Kardex de Producto Terminado
+   - Tab "📋 Kardex PT" con entradas y salidas
+   - Entradas primero, luego salidas
+   - Resumen: total entradas, salidas y saldo neto
+   - Filtros por plato y tipo de movimiento
 
-  1. Abrir terminal aquí
-  2. Ejecutar: ./INSTALL.sh
-  3. Ejecutar: ./START.sh
+✅ Exportaciones sin dependencias pesadas
+   - Archivos CSV que abren directamente en Excel
+   - Reporte PDF de recetas imprimible desde el navegador
+   - Compatible con cualquier versión de Excel
 
-
-⚙️ CARACTERÍSTICAS DEL SISTEMA:
-
-✅ Control de inventario automatizado
-✅ Recetas con cálculo de costos y márgenes
-✅ Producción con descuento automático de stock
-✅ Reportes y análisis de rentabilidad
-✅ Gestión de usuarios con roles
-✅ Auditoría completa de operaciones
-✅ Interfaz moderna y responsive
-
-
-💾 BASE DE DATOS:
-
-El sistema usa archivos JSON (carpeta /data)
-- Fácil de respaldar
-- No requiere instalación adicional
-- Totalmente portable
-
-
-🆘 SOPORTE:
-
-Si tenés problemas:
-1. Revisá INSTALACION.md
-2. Verificá que Node.js esté instalado: node --version
-3. Contactá al departamento de Informática
-
-
-🇭🇳 Desarrollado con ❤️ para Honduras
-   Instituto Tecnológico Santo Tomás
-
-═══════════════════════════════════════════════════════════
+═══════════════════════════════════════════════════════════════
+Instituto Tecnológico Santo Tomás - Honduras 🇭🇳
+═══════════════════════════════════════════════════════════════

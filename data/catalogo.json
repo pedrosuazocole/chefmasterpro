@@ -1,1 +1,56 @@
-[]
+[
+  {
+    "id": 1001,
+    "codigo": "001",
+    "ingrediente": "ZAMBOS PICOSITO",
+    "nombre": "ZAMBOS PICOSITO",
+    "unidad": "Unidad",
+    "activo": true,
+    "createdAt": "2026-04-26T18:22:00.017Z"
+  },
+  {
+    "id": 1002,
+    "codigo": "002",
+    "ingrediente": "CARNE MOLIDA",
+    "nombre": "CARNE MOLIDA",
+    "unidad": "Libra",
+    "activo": true,
+    "createdAt": "2026-04-26T18:22:00.018Z"
+  },
+  {
+    "id": 1777229582643,
+    "codigo": "003",
+    "nombre": "LIMON",
+    "ingrediente": "LIMON",
+    "unidad": "Unidad",
+    "activo": true,
+    "createdAt": "2026-04-26T18:53:02.643Z"
+  },
+  {
+    "id": 1777229760140,
+    "codigo": "004",
+    "nombre": "REPOLLO",
+    "ingrediente": "REPOLLO",
+    "unidad": "Unidad",
+    "activo": true,
+    "createdAt": "2026-04-26T18:56:00.140Z"
+  },
+  {
+    "id": 1777229778507,
+    "codigo": "005",
+    "nombre": "TOMATE",
+    "ingrediente": "TOMATE",
+    "unidad": "Unidad",
+    "activo": true,
+    "createdAt": "2026-04-26T18:56:18.507Z"
+  },
+  {
+    "id": 1777229806493,
+    "codigo": "006",
+    "nombre": "CULANTRO FINO",
+    "ingrediente": "CULANTRO FINO",
+    "unidad": "Unidad",
+    "activo": true,
+    "createdAt": "2026-04-26T18:56:46.493Z"
+  }
+]
