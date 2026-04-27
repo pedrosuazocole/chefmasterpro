@@ -71,33 +71,38 @@
                         style="background:#21c354;color:white;">📊 Exportar Excel</button>
             </div>
             <div class="card-body">
-                <div class="form-row">
-                    <div class="form-group">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:0.75rem;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Fecha Inicio</label>
+                        <input type="date" id="kardexFechaInicio" onchange="filtrarKardex()">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Fecha Final</label>
+                        <input type="date" id="kardexFechaFinal" onchange="filtrarKardex()">
+                    </div>
+                    <div class="form-group" style="margin:0;">
                         <label>Producto</label>
                         <select id="filtroProducto" onchange="filtrarKardex()">
-                            <option value="">📦 Todos los productos</option>
+                            <option value="">📦 Todos</option>
                             <% inventario.forEach(i => { %>
                                 <option value="<%= i.ingrediente.toLowerCase() %>"><%= i.ingrediente %></option>
                             <% }); %>
                         </select>
                     </div>
-                    <div class="form-group">
+                    <div class="form-group" style="margin:0;">
                         <label>Tipo</label>
                         <select id="filtroTipo" onchange="filtrarKardex()">
                             <option value="">Todos</option>
-                            <option value="ENTRADA">📥 Entradas</option>
-                            <option value="SALIDA">📤 Salidas</option>
+                            <option value="ENTRADA">📥 Entrada</option>
+                            <option value="SALIDA">📤 Salida</option>
                         </select>
                     </div>
-                    <div class="form-group">
-                        <label>Buscar (Documento / Producto)</label>
-                        <input type="text" id="buscarKardex" 
-                               placeholder="Ej: FACT-001 o PROD-..." 
-                               onkeyup="filtrarKardex()">
+                    <div class="form-group" style="margin:0;">
+                        <label>Documento</label>
+                        <input type="text" id="buscarKardex" placeholder="FACT-001, PROD-..." onkeyup="filtrarKardex()">
                     </div>
-                    <div class="form-group" style="display:flex;align-items:flex-end;">
-                        <button class="btn btn-sm" onclick="limpiarFiltros()" 
-                                style="background:#999;color:white;width:100%;">🔄 Limpiar</button>
+                    <div class="form-group" style="margin:0;display:flex;align-items:flex-end;">
+                        <button class="btn btn-sm" onclick="limpiarFiltros()" style="background:#999;color:white;width:100%;">🔄 Limpiar</button>
                     </div>
                 </div>
             </div>
@@ -133,7 +138,7 @@
                         <tbody id="kardexBody">
                             <% 
                             // Mostrar más recientes primero
-                            const kardexOrdenado = kardex.slice().reverse();
+                            const kardexOrdenado = kardex.slice().sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
                             kardexOrdenado.forEach((k, idx) => {
                                 const esEntrada = k.tipo === 'ENTRADA';
                                 const cantidad   = parseFloat(k.cantidad || 0);
@@ -148,6 +153,7 @@
                                 data-producto="<%= (k.producto||'').toLowerCase() %>"
                                 data-tipo="<%= k.tipo %>"
                                 data-doc="<%= (k.documento||'').toLowerCase() %>"
+                                data-fecha="<%= new Date(k.fecha).toISOString().split('T')[0] %>"
                                 data-texto="<%= (k.producto||'').toLowerCase() %> <%= (k.documento||'').toLowerCase() %> <%= (k.observaciones||'').toLowerCase() %>">
                                 
                                 <td style="white-space:nowrap;font-size:0.82rem;">
@@ -225,22 +231,27 @@
     <script src="/js/exportar.js"></script>
     <script>
         function filtrarKardex() {
-            const producto = document.getElementById('filtroProducto').value;
-            const tipo     = document.getElementById('filtroTipo').value;
-            const busqueda = document.getElementById('buscarKardex').value.toLowerCase().trim();
-            const filas    = document.querySelectorAll('#kardexBody tr');
-            let visibles   = 0;
+            const producto    = document.getElementById('filtroProducto').value;
+            const tipo        = document.getElementById('filtroTipo').value;
+            const busqueda    = document.getElementById('buscarKardex').value.toLowerCase().trim();
+            const fechaInicio = document.getElementById('kardexFechaInicio').value;
+            const fechaFinal  = document.getElementById('kardexFechaFinal').value;
+            const filas       = document.querySelectorAll('#kardexBody tr');
+            let visibles = 0;
             
             filas.forEach(fila => {
                 const dprod = fila.dataset.producto || '';
-                const dtipo = fila.dataset.tipo || '';
-                const dtxt  = fila.dataset.texto || '';
+                const dtipo = fila.dataset.tipo     || '';
+                const dtxt  = fila.dataset.texto    || '';
+                const dfech = fila.dataset.fecha    || ''; // YYYY-MM-DD
+
+                const okProd  = !producto    || dprod === producto;
+                const okTipo  = !tipo        || dtipo === tipo;
+                const okBusc  = !busqueda    || dtxt.includes(busqueda);
+                const okFecI  = !fechaInicio || dfech >= fechaInicio;
+                const okFecF  = !fechaFinal  || dfech <= fechaFinal;
                 
-                const okProd = !producto || dprod === producto;
-                const okTipo = !tipo     || dtipo === tipo;
-                const okBusc = !busqueda || dtxt.includes(busqueda);
-                
-                const mostrar = okProd && okTipo && okBusc;
+                const mostrar = okProd && okTipo && okBusc && okFecI && okFecF;
                 fila.style.display = mostrar ? '' : 'none';
                 if (mostrar) visibles++;
             });
@@ -250,9 +261,11 @@
         }
         
         function limpiarFiltros() {
-            document.getElementById('filtroProducto').value = '';
-            document.getElementById('filtroTipo').value = '';
-            document.getElementById('buscarKardex').value = '';
+            document.getElementById('filtroProducto').value     = '';
+            document.getElementById('filtroTipo').value         = '';
+            document.getElementById('buscarKardex').value       = '';
+            document.getElementById('kardexFechaInicio').value  = '';
+            document.getElementById('kardexFechaFinal').value   = '';
             filtrarKardex();
         }
     </script>

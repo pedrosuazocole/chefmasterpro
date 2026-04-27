@@ -17,7 +17,7 @@
         
         <div class="tabs">
             <button class="tab-btn active" onclick="switchTab('stock')">Stock Actual</button>
-            <button class="tab-btn" onclick="switchTab('movimientos')">Movimientos</button>
+            <button class="tab-btn" onclick="switchTab('movimientos')">📋 Kardex PT</button>
             <button class="tab-btn" onclick="switchTab('salida')">Registrar Salida</button>
             <% if (isAdmin) { %>
             <button class="tab-btn" onclick="switchTab('ajuste')">Ajuste de Inventario</button>
@@ -139,53 +139,109 @@
             </div>
         </div>
         
-        <!-- TAB MOVIMIENTOS -->
+        <!-- TAB KARDEX PRODUCTO TERMINADO -->
         <div id="tab-movimientos" class="tab-content">
             <div class="card">
-                <div class="card-header">
-                    <h3>Historial de Movimientos</h3>
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                    <h3>📋 Kardex de Producto Terminado</h3>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarSalidaExcel()" style="background:#21c354;color:white;">📊 Excel</button>
+                        <button class="btn btn-sm" onclick="exportarSalidaPDF()" style="background:#ff4b4b;color:white;">📄 PDF</button>
+                        <select id="filtroMovPlato" onchange="filtrarMovimientos()" 
+                                style="padding:0.4rem 0.8rem;border:1px solid var(--border);border-radius:6px;">
+                            <option value="">Todos los platos</option>
+                            <% productoTerminado.forEach(p => { %>
+                                <option value="<%= p.plato %>"><%= p.plato %></option>
+                            <% }); %>
+                        </select>
+                        <select id="filtroMovTipo" onchange="filtrarMovimientos()"
+                                style="padding:0.4rem 0.8rem;border:1px solid var(--border);border-radius:6px;">
+                            <option value="">Todos los tipos</option>
+                            <option value="ENTRADA">📥 Entradas</option>
+                            <option value="SALIDA">📤 Salidas</option>
+                        </select>
+                    </div>
                 </div>
                 <div class="card-body">
+                    <%
+                    const totalEntradasPT = movimientos.filter(m=>m.tipo==='ENTRADA').reduce((s,m)=>s+parseInt(m.cantidad||0),0);
+                    const totalSalidasPT  = movimientos.filter(m=>m.tipo==='SALIDA').reduce((s,m)=>s+parseInt(m.cantidad||0),0);
+                    %>
+                    <!-- Resumen rápido -->
+                    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:1rem;margin-bottom:1.5rem;">
+                        <div style="background:#f0fff4;border:1px solid #21c354;border-radius:8px;padding:1rem;text-align:center;">
+                            <div style="font-size:1.5rem;">📥</div>
+                            <div style="font-weight:bold;color:#21c354;font-size:1.2rem;"><%= totalEntradasPT %></div>
+                            <div style="font-size:0.85rem;color:#666;">Total Entradas (unidades)</div>
+                        </div>
+                        <div style="background:#fff5f5;border:1px solid #ff4b4b;border-radius:8px;padding:1rem;text-align:center;">
+                            <div style="font-size:1.5rem;">📤</div>
+                            <div style="font-weight:bold;color:#ff4b4b;font-size:1.2rem;"><%= totalSalidasPT %></div>
+                            <div style="font-size:0.85rem;color:#666;">Total Salidas (unidades)</div>
+                        </div>
+                        <div style="background:#f0f4ff;border:1px solid #0068c9;border-radius:8px;padding:1rem;text-align:center;">
+                            <div style="font-size:1.5rem;">📦</div>
+                            <div style="font-weight:bold;color:#0068c9;font-size:1.2rem;"><%= totalEntradasPT - totalSalidasPT %></div>
+                            <div style="font-size:0.85rem;color:#666;">Saldo Neto (unidades)</div>
+                        </div>
+                    </div>
+
                     <% if (movimientos && movimientos.length > 0) { %>
                         <div class="table-container">
-                            <table class="table">
+                            <table class="table" id="tablaMovPT">
                                 <thead>
-                                    <tr>
-                                        <th>Fecha</th>
+                                    <tr style="background:#f8f9fa;">
+                                        <th>Fecha y Hora</th>
                                         <th>Plato</th>
                                         <th>Tipo</th>
-                                        <th>Cantidad</th>
+                                        <th style="color:#21c354;">📥 Entrada</th>
+                                        <th style="color:#ff4b4b;">📤 Salida</th>
                                         <th>Stock Anterior</th>
                                         <th>Stock Nuevo</th>
-                                        <th>Detalle</th>
+                                        <th>Origen / Motivo</th>
                                     </tr>
                                 </thead>
-                                <tbody>
-                                    <% movimientos.slice(-50).reverse().forEach(m => { %>
-                                    <tr>
-                                        <td><%= new Date(m.fecha).toLocaleString('es-HN') %></td>
+                                <tbody id="tbodyMovPT">
+                                    <% movimientos.forEach(m => { 
+                                        const esEntrada = m.tipo === 'ENTRADA';
+                                    %>
+                                    <tr style="background:<%= esEntrada ? '#f0fff4' : m.tipo==='SALIDA' ? '#fff5f5' : '#f0f4ff' %>;"
+                                        data-plato="<%= m.plato %>" data-tipo="<%= m.tipo %>">
+                                        <td style="white-space:nowrap;font-size:0.85rem;">
+                                            <%= new Date(m.fecha).toLocaleDateString('es-HN') %><br>
+                                            <small style="color:#999;"><%= new Date(m.fecha).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'}) %></small>
+                                        </td>
                                         <td><strong><%= m.plato %></strong></td>
                                         <td>
-                                            <span class="badge" style="background: 
-                                                <%= m.tipo === 'ENTRADA' ? '#21c354' : m.tipo === 'SALIDA' ? '#ff4b4b' : '#0068c9' %>; 
-                                                color: white;">
-                                                <%= m.tipo === 'ENTRADA' ? '📥' : m.tipo === 'SALIDA' ? '📤' : '🔧' %> <%= m.tipo %>
+                                            <span style="background:<%= esEntrada ? '#21c354' : m.tipo==='SALIDA' ? '#ff4b4b' : '#0068c9' %>;
+                                                         color:white;padding:0.25rem 0.6rem;border-radius:12px;font-size:0.82rem;white-space:nowrap;">
+                                                <%= esEntrada ? '📥 ENTRADA' : m.tipo==='SALIDA' ? '📤 SALIDA' : '🔧 '+m.tipo %>
                                             </span>
                                         </td>
-                                        <td><%= m.cantidad %></td>
-                                        <td><%= m.stockAnterior %></td>
-                                        <td><strong><%= m.stockNuevo %></strong></td>
-                                        <td><%= m.origen || m.motivo || '-' %></td>
+                                        <td style="color:#21c354;font-weight:bold;text-align:center;">
+                                            <%= esEntrada ? parseInt(m.cantidad) : '—' %>
+                                        </td>
+                                        <td style="color:#ff4b4b;font-weight:bold;text-align:center;">
+                                            <%= m.tipo==='SALIDA' ? parseInt(m.cantidad) : '—' %>
+                                        </td>
+                                        <td style="text-align:center;"><%= m.stockAnterior ?? '-' %></td>
+                                        <td style="text-align:center;"><strong><%= m.stockNuevo ?? '-' %></strong></td>
+                                        <td><small style="color:#666;"><%= m.origen || m.motivo || '-' %></small></td>
                                     </tr>
                                     <% }); %>
                                 </tbody>
                             </table>
                         </div>
-                        <p class="text-muted" style="margin-top: 1rem; text-align: center;">
-                            Mostrando últimos 50 movimientos
+                        <p style="margin-top:0.5rem;font-size:0.85rem;color:#999;text-align:right;">
+                            Total movimientos: <%= movimientos.length %>. Entradas primero, luego salidas.
                         </p>
                     <% } else { %>
-                        <p class="text-center text-muted">No hay movimientos registrados</p>
+                        <div style="text-align:center;padding:3rem;color:#999;">
+                            <div style="font-size:3rem;">📋</div>
+                            <p>No hay movimientos registrados aún</p>
+                            <p style="font-size:0.9rem;">Se registran al procesar producciones o registrar salidas</p>
+                        </div>
                     <% } %>
                 </div>
             </div>
@@ -194,8 +250,16 @@
         <!-- TAB REGISTRAR SALIDA -->
         <div id="tab-salida" class="tab-content">
             <div class="card">
-                <div class="card-header">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
                     <h3>Registrar Salida de Producto</h3>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="imprimirMovimientos()"
+                                style="background:#555;color:white;padding:0.4rem 0.8rem;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarSalidaExcel()"
+                                style="background:#21c354;color:white;padding:0.4rem 0.8rem;">📊 Excel</button>
+                        <button class="btn btn-sm" onclick="exportarSalidaPDF()"
+                                style="background:#ff4b4b;color:white;padding:0.4rem 0.8rem;">📄 PDF</button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <form id="formSalida" onsubmit="registrarSalida(event)">
@@ -289,5 +353,29 @@
     
     <script src="/js/main.js"></script>
     <script src="/js/producto-terminado.js"></script>
+    <script>
+    function filtrarMovimientos() {
+        const plato = document.getElementById('filtroMovPlato').value;
+        const tipo  = document.getElementById('filtroMovTipo').value;
+        const filas = document.querySelectorAll('#tbodyMovPT tr');
+        
+        filas.forEach(fila => {
+            const okPlato = !plato || fila.dataset.plato === plato;
+            const okTipo  = !tipo  || fila.dataset.tipo  === tipo;
+            fila.style.display = (okPlato && okTipo) ? '' : 'none';
+        });
+    }
+
+    // ── IMPRIMIR / EXPORTAR DESDE REGISTRAR SALIDA ───────────
+    function imprimirMovimientos() {
+        window.open('/api/exportar/movimientos-pt/pdf', '_blank');
+    }
+    function exportarSalidaExcel() {
+        window.location.href = '/api/exportar/movimientos-pt/excel';
+    }
+    function exportarSalidaPDF() {
+        window.open('/api/exportar/movimientos-pt/pdf', '_blank');
+    }
+    </script>
 </body>
 </html>

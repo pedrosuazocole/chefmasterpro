@@ -121,15 +121,20 @@
         </div>
         
         <div class="card">
-            <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
                 <h3>📦 Inventario Completo</h3>
-                <button class="btn btn-sm" onclick="exportarExcel('inventario', 'inventario')" 
-                        style="background: #21c354; color: white;">
-                    📊 Exportar Excel
-                </button>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                    <button class="btn btn-sm" onclick="exportarExcel('inventario','inventario')" style="background:#21c354;color:white;">📊 Excel</button>
+                </div>
             </div>
             <div class="card-body">
-                <table class="table">
+                <div style="margin-bottom:1rem;">
+                    <input type="text" id="filtroInvReporte" placeholder="🔍 Buscar ingrediente..."
+                           onkeyup="filtrarInvReporte()"
+                           style="padding:0.55rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:260px;font-size:0.95rem;">
+                </div>
+                <table class="table" id="tablaInvReporte">
                     <thead>
                         <tr>
                             <th>Código</th>
@@ -137,6 +142,7 @@
                             <th>Stock</th>
                             <th>Unidad</th>
                             <th>Costo Unit.</th>
+                            <th style="background:#fff3cd;color:#856404;">Costo Promedio</th>
                             <th>Valor Total</th>
                         </tr>
                     </thead>
@@ -144,19 +150,22 @@
                         <% inventario.forEach(item => { 
                             const valorTotal = item.stock * item.costoUnitario;
                         %>
-                        <tr>
+                        <tr class="fila-inv-reporte" data-nombre="<%= (item.ingrediente||'').toLowerCase() %>">
                             <td><%= item.codigo %></td>
                             <td><strong><%= item.ingrediente %></strong></td>
                             <td><%= item.stock.toFixed(2) %></td>
                             <td><%= item.unidad %></td>
                             <td>L. <%= item.costoUnitario.toFixed(2) %></td>
+                            <td style="background:#fffbf0;font-weight:bold;color:#856404;">
+                                L. <%= item.costoUnitario.toFixed(4) %>
+                            </td>
                             <td><strong>L. <%= valorTotal.toFixed(2) %></strong></td>
                         </tr>
                         <% }); %>
                     </tbody>
                     <tfoot>
                         <tr style="background: var(--light); font-weight: bold;">
-                            <td colspan="5" style="text-align: right;">TOTAL INVENTARIO:</td>
+                            <td colspan="6" style="text-align: right;">TOTAL INVENTARIO:</td>
                             <td>L. <%= totalInventario.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') %></td>
                         </tr>
                     </tfoot>
@@ -166,11 +175,21 @@
         
         <% if (recetas.length > 0) { %>
         <div class="card">
-            <div class="card-header">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
                 <h3>📊 Detalle de Costeo por Receta</h3>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                    <button class="btn btn-sm" onclick="exportarExcel('recetas','recetas')" style="background:#21c354;color:white;">📊 Excel</button>
+                    <button class="btn btn-sm" onclick="exportarPDF('recetas','recetas')" style="background:#ff4b4b;color:white;">📄 PDF</button>
+                </div>
             </div>
             <div class="card-body">
-                <table class="table">
+                <div style="margin-bottom:1rem;">
+                    <input type="text" id="filtroRecetasReporte" placeholder="🔍 Buscar plato..."
+                           onkeyup="filtrarRecetasReporte()"
+                           style="padding:0.55rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:260px;font-size:0.95rem;">
+                </div>
+                <table class="table" id="tablaRecetasReporte">
                     <thead>
                         <tr>
                             <th>Plato</th>
@@ -182,7 +201,7 @@
                     </thead>
                     <tbody>
                         <% recetas.forEach(r => { %>
-                        <tr>
+                        <tr class="fila-receta-reporte" data-plato="<%= (r.plato||'').toLowerCase() %>">
                             <td><strong><%= r.plato %></strong></td>
                             <td>L. <%= r.costoTotalPlato.toFixed(2) %></td>
                             <td>L. <%= r.precioVenta.toFixed(2) %></td>
@@ -195,9 +214,133 @@
             </div>
         </div>
         <% } %>
+
+        <!-- SECCIÓN MOVIMIENTOS DE KARDEX -->
+        <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                <h3>📋 Movimientos de Kardex</h3>
+                <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                    <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                    <button class="btn btn-sm" onclick="exportarExcel('kardex','kardex')" style="background:#21c354;color:white;">📊 Excel</button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.75rem;margin-bottom:1rem;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Fecha Inicio</label>
+                        <input type="date" id="repKardexFechaI" onchange="filtrarKardexReporte()">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Fecha Final</label>
+                        <input type="date" id="repKardexFechaF" onchange="filtrarKardexReporte()">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Producto</label>
+                        <input type="text" id="repKardexProd" placeholder="Producto..." onkeyup="filtrarKardexReporte()">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Tipo</label>
+                        <select id="repKardexTipo" onchange="filtrarKardexReporte()">
+                            <option value="">Todos</option>
+                            <option value="ENTRADA">📥 Entrada</option>
+                            <option value="SALIDA">📤 Salida</option>
+                        </select>
+                    </div>
+                </div>
+                <% if (kardex && kardex.length > 0) { %>
+                <div class="table-container">
+                    <table class="table" style="font-size:0.9rem;">
+                        <thead>
+                            <tr>
+                                <th>#</th>
+                                <th>Fecha</th>
+                                <th>Producto</th>
+                                <th>Tipo</th>
+                                <th>Documento</th>
+                                <th style="color:#21c354;">📥 Entrada</th>
+                                <th style="color:#ff4b4b;">📤 Salida</th>
+                                <th>Costo Unit.</th>
+                                <th>Saldo</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% kardex.forEach((k, idx) => {
+                                const esEntrada = k.tipo === 'ENTRADA';
+                            %>
+                            <tr style="background:<%= esEntrada ? '#f0fff4' : '#fff5f5' %>;"
+                                class="fila-kardex-rep"
+                                data-producto="<%= (k.producto||'').toLowerCase() %>"
+                                data-tipo="<%= k.tipo %>"
+                                data-fecha="<%= new Date(k.fecha).toISOString().split('T')[0] %>">                                <td style="color:#999;font-size:0.82rem;"><%= idx + 1 %></td>
+                                <td style="white-space:nowrap;font-size:0.85rem;">
+                                    <%= new Date(k.fecha).toLocaleDateString('es-HN') %><br>
+                                    <small style="color:#999;"><%= new Date(k.fecha).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'}) %></small>
+                                </td>
+                                <td><strong><%= k.producto %></strong></td>
+                                <td>
+                                    <span style="background:<%= esEntrada ? '#21c354' : '#ff4b4b' %>;color:white;
+                                                 padding:0.2rem 0.55rem;border-radius:12px;font-size:0.8rem;">
+                                        <%= esEntrada ? '📥 ENTRADA' : '📤 SALIDA' %>
+                                    </span>
+                                </td>
+                                <td><code style="background:#f0f4ff;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.8rem;"><%= k.documento %></code></td>
+                                <td style="color:#21c354;font-weight:bold;text-align:center;">
+                                    <%= esEntrada ? parseFloat(k.cantidad).toFixed(2) : '—' %>
+                                </td>
+                                <td style="color:#ff4b4b;font-weight:bold;text-align:center;">
+                                    <%= !esEntrada ? parseFloat(k.cantidad).toFixed(2) : '—' %>
+                                </td>
+                                <td style="text-align:right;">L. <%= parseFloat(k.costoUnitario||0).toFixed(2) %></td>
+                                <td style="text-align:right;"><strong><%= parseFloat(k.stockNuevo||0).toFixed(2) %></strong></td>
+                                <td style="font-size:0.82rem;color:#666;"><%= k.observaciones || '—' %></td>
+                            </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+                <p style="margin-top:0.5rem;font-size:0.82rem;color:#999;text-align:right;">
+                    Total movimientos: <%= kardex.length %> · Orden cronológico ascendente
+                </p>
+                <% } else { %>
+                <div style="text-align:center;padding:2rem;color:#999;">
+                    <div style="font-size:2.5rem;">📋</div>
+                    <p>No hay movimientos de Kardex registrados aún.</p>
+                </div>
+                <% } %>
+            </div>
+        </div>
+
     </main>
     
     <script src="/js/main.js"></script>
     <script src="/js/exportar.js"></script>
+    <script>
+    function filtrarInvReporte() {
+        const busq = document.getElementById('filtroInvReporte').value.toLowerCase();
+        document.querySelectorAll('.fila-inv-reporte').forEach(f => {
+            f.style.display = (!busq || (f.dataset.nombre||'').includes(busq)) ? '' : 'none';
+        });
+    }
+    function filtrarRecetasReporte() {
+        const busq = document.getElementById('filtroRecetasReporte').value.toLowerCase();
+        document.querySelectorAll('.fila-receta-reporte').forEach(f => {
+            f.style.display = (!busq || (f.dataset.plato||'').includes(busq)) ? '' : 'none';
+        });
+    }
+    function filtrarKardexReporte() {
+        const fi   = document.getElementById('repKardexFechaI').value;
+        const ff   = document.getElementById('repKardexFechaF').value;
+        const prod = document.getElementById('repKardexProd').value.toLowerCase().trim();
+        const tipo = document.getElementById('repKardexTipo').value;
+        document.querySelectorAll('.fila-kardex-rep').forEach(f => {
+            const okFi   = !fi   || (f.dataset.fecha||'') >= fi;
+            const okFf   = !ff   || (f.dataset.fecha||'') <= ff;
+            const okProd = !prod || (f.dataset.producto||'').includes(prod);
+            const okTipo = !tipo || f.dataset.tipo === tipo;
+            f.style.display = (okFi && okFf && okProd && okTipo) ? '' : 'none';
+        });
+    }
+    </script>
 </body>
 </html>

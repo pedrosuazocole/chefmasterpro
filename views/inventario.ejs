@@ -66,10 +66,12 @@
         <!-- TAB STOCK ACTUAL -->
         <div id="tab-stock" class="tab-content">
             <div class="card">
-                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
                     <h3>Stock Actual de Inventario</h3>
-                    <button class="btn btn-sm" onclick="exportarExcel('inventario','inventario')" 
-                            style="background:#21c354;color:white;">📊 Exportar Excel</button>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarExcel('inventario','inventario')" style="background:#21c354;color:white;">📊 Excel</button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <div style="margin-bottom:1rem;">
@@ -103,22 +105,34 @@
         <!-- TAB HISTORIAL -->
         <div id="tab-historial" class="tab-content">
             <div class="card">
-                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
                     <h3>Historial de Compras</h3>
-                    <button class="btn btn-sm" onclick="exportarExcel('historial','historial_compras')" 
-                            style="background:#21c354;color:white;">📊 Exportar Excel</button>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarExcel('historial','historial_compras')" style="background:#21c354;color:white;">📊 Excel</button>
+                    </div>
                 </div>
                 <div class="card-body">
-                    <div class="form-row" style="margin-bottom:1.5rem;">
-                        <div class="form-group">
-                            <label>🔍 Buscar por Factura o Producto</label>
-                            <input type="text" id="buscarHistorial" 
-                                   placeholder="Ej: 001-2026 o PAPAS..." 
-                                   onkeyup="filtrarHistorial()">
+                    <div class="form-row" style="margin-bottom:1rem;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:0.75rem;">
+                        <div class="form-group" style="margin:0;">
+                            <label>Fecha Inicio</label>
+                            <input type="date" id="fechaInicio" onchange="filtrarHistorial()">
                         </div>
-                        <div class="form-group">
-                            <label>Filtrar por Fecha</label>
-                            <input type="date" id="fechaFiltro" onchange="filtrarHistorial()">
+                        <div class="form-group" style="margin:0;">
+                            <label>Fecha Final</label>
+                            <input type="date" id="fechaFinal" onchange="filtrarHistorial()">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label>Proveedor</label>
+                            <input type="text" id="filtroProveedor" placeholder="Proveedor..." onkeyup="filtrarHistorial()">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label>Producto</label>
+                            <input type="text" id="filtroProductoHist" placeholder="Producto..." onkeyup="filtrarHistorial()">
+                        </div>
+                        <div class="form-group" style="margin:0;">
+                            <label>Factura / Búsqueda</label>
+                            <input type="text" id="buscarHistorial" placeholder="No. Factura..." onkeyup="filtrarHistorial()">
                         </div>
                     </div>
                     
@@ -127,6 +141,7 @@
                             <table class="table" id="tablaHistorial">
                                 <thead>
                                     <tr>
+                                        <th>#</th>
                                         <th>Fecha</th>
                                         <th>No. Factura</th>
                                         <th>Proveedor</th>
@@ -139,10 +154,12 @@
                                     </tr>
                                 </thead>
                                 <tbody id="tbodyHistorial">
-                                    <% historial.slice().reverse().forEach(h => { %>
+                                    <% historial.forEach((h, idx) => { %>
                                     <tr data-factura="<%= (h.noFactura||'').toLowerCase() %>" 
                                         data-producto="<%= (h.producto||'').toLowerCase() %>"
-                                        data-fecha="<%= h.fechaFactura || '' %>">
+                                        data-fecha="<%= h.fechaFactura || '' %>"
+                                        data-proveedor="<%= (h.proveedor||'').toLowerCase() %>">
+                                        <td style="color:#999;font-size:0.85rem;"><%= idx + 1 %></td>
                                         <td><%= h.fechaFactura || '-' %></td>
                                         <td>
                                             <code style="background:#f0f4ff;padding:0.2rem 0.5rem;border-radius:4px;font-weight:bold;">
@@ -159,12 +176,18 @@
                                         </td>
                                         <td>L. <%= parseFloat(h.costoUnitario || 0).toFixed(2) %></td>
                                         <td><strong style="color:#21c354;">L. <%= parseFloat(h.costoTotal || 0).toFixed(2) %></strong></td>
-                                        <td>
+                                        <td style="white-space:nowrap;">
                                             <% if (h.id) { %>
+                                            <button class="btn btn-sm"
+                                                    onclick="abrirModalEditar('<%= h.id %>','<%= h.noFactura %>','<%= h.producto %>',<%= h.cantidad %>,<%= h.costoUnitario %>,'<%= h.unidad||'Unidad' %>','<%= h.proveedor||'' %>','<%= h.fechaFactura||'' %>')"
+                                                    style="background:#0068c9;color:white;padding:0.3rem 0.6rem;border-radius:6px;cursor:pointer;margin-right:0.25rem;"
+                                                    title="Modificar">
+                                                ✏️ Modificar
+                                            </button>
                                             <button class="btn btn-sm" 
                                                     onclick="eliminarCompra('<%= h.id %>', '<%= h.noFactura %>', '<%= h.producto %>')" 
-                                                    style="background:#ff4b4b;color:white;padding:0.3rem 0.7rem;border-radius:6px;cursor:pointer;" 
-                                                    title="Eliminar este registro">
+                                                    style="background:#ff4b4b;color:white;padding:0.3rem 0.6rem;border-radius:6px;cursor:pointer;" 
+                                                    title="Eliminar">
                                                 🗑️ Eliminar
                                             </button>
                                             <% } else { %>
@@ -177,7 +200,7 @@
                             </table>
                         </div>
                         <p class="text-muted" style="margin-top:0.5rem;font-size:0.85rem;text-align:right;">
-                            Total: <%= historial.length %> registros
+                            <%= historial.length %> registros · Orden cronológico (más antiguo arriba)
                         </p>
                     <% } else { %>
                         <div style="text-align:center;padding:3rem;color:#999;">
@@ -196,26 +219,93 @@
     <script src="/js/main.js"></script>
     <script src="/js/exportar.js"></script>
     <script src="/js/inventario.js"></script>
+
+    <!-- MODAL EDITAR COMPRA -->
+    <div id="modalEditarCompra" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);
+         z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:14px;width:100%;max-width:520px;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#0068c9,#0050a0);padding:1.2rem 1.5rem;
+                        display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;color:white;font-size:1.05rem;">✏️ Modificar Registro de Compra</h3>
+                <button onclick="cerrarModalEditar()" style="background:rgba(255,255,255,0.2);border:none;
+                        color:white;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+            <div style="padding:1.5rem;">
+                <input type="hidden" id="editId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><strong>Producto</strong></label>
+                        <input type="text" id="editProducto" readonly
+                               style="background:#f5f5f5;cursor:not-allowed;">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha Factura</label>
+                        <input type="date" id="editFecha">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Cantidad *</label>
+                        <input type="number" id="editCantidad" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Unidad</label>
+                        <select id="editUnidad">
+                            <option>Unidad</option><option>Libra</option><option>Kg</option>
+                            <option>Gramo</option><option>Litro</option><option>Ml</option>
+                            <option>Onza</option><option>Docena</option><option>Caja</option><option>Bolsa</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Costo Unitario (L.) *</label>
+                        <input type="number" id="editCosto" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Proveedor</label>
+                        <input type="text" id="editProveedor" placeholder="Nombre del proveedor">
+                    </div>
+                </div>
+                <div style="background:#f0f4ff;border-radius:8px;padding:0.75rem;margin-bottom:1rem;font-size:0.9rem;">
+                    ⚠️ Al guardar se recalculará automáticamente el <strong>costo promedio</strong> del inventario.
+                </div>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <button onclick="cerrarModalEditar()" 
+                            style="background:#999;color:white;border:none;padding:0.6rem 1.2rem;border-radius:6px;cursor:pointer;">
+                        Cancelar
+                    </button>
+                    <button onclick="guardarEdicionCompra()"
+                            style="background:#0068c9;color:white;border:none;padding:0.6rem 1.5rem;border-radius:6px;cursor:pointer;font-weight:bold;">
+                        💾 Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         function filtrarHistorial() {
-            const busqueda = document.getElementById('buscarHistorial').value.toLowerCase().trim();
-            const fechaFiltro = document.getElementById('fechaFiltro').value;
-            const filas = document.querySelectorAll('#tbodyHistorial tr');
-            
+            const busqueda   = (document.getElementById('buscarHistorial')?.value || '').toLowerCase().trim();
+            const fechaInicio= document.getElementById('fechaInicio')?.value || '';
+            const fechaFinal = document.getElementById('fechaFinal')?.value  || '';
+            const proveedor  = (document.getElementById('filtroProveedor')?.value || '').toLowerCase().trim();
+            const producto   = (document.getElementById('filtroProductoHist')?.value || '').toLowerCase().trim();
+            const filas      = document.querySelectorAll('#tbodyHistorial tr');
             filas.forEach(fila => {
-                const factura = (fila.dataset.factura || '');
-                const producto = (fila.dataset.producto || '');
-                const fecha = (fila.dataset.fecha || '');
-                
-                const coincideBusqueda = busqueda === '' || 
-                    factura.includes(busqueda) || 
-                    producto.includes(busqueda);
-                const coincideFecha = fechaFiltro === '' || fecha === fechaFiltro;
-                
-                fila.style.display = (coincideBusqueda && coincideFecha) ? '' : 'none';
+                const dFac  = fila.dataset.factura   || '';
+                const dProd = fila.dataset.producto  || '';
+                const dFech = fila.dataset.fecha     || '';
+                const dProv = fila.dataset.proveedor || '';
+                const okBusq  = !busqueda   || dFac.includes(busqueda)  || dProd.includes(busqueda);
+                const okFecI  = !fechaInicio || dFech >= fechaInicio;
+                const okFecF  = !fechaFinal  || dFech <= fechaFinal;
+                const okProv  = !proveedor   || dProv.includes(proveedor);
+                const okProd  = !producto    || dProd.includes(producto);
+                fila.style.display = (okBusq && okFecI && okFecF && okProv && okProd) ? '' : 'none';
             });
         }
-        
         function filtrarStock() {
             const busqueda = document.getElementById('buscarStock').value.toLowerCase();
             const filas = document.querySelectorAll('#tbodyStock tr');
@@ -224,6 +314,51 @@
                 fila.style.display = (busqueda === '' || texto.includes(busqueda)) ? '' : 'none';
             });
         }
+        // ── Modal editar compra ──
+        function abrirModalEditar(id, factura, producto, cantidad, costo, unidad, proveedor, fecha) {
+            document.getElementById('editId').value        = id;
+            document.getElementById('editProducto').value  = producto;
+            document.getElementById('editCantidad').value  = cantidad;
+            document.getElementById('editCosto').value     = costo;
+            document.getElementById('editProveedor').value = proveedor;
+            document.getElementById('editFecha').value     = fecha;
+            const sel = document.getElementById('editUnidad');
+            for (let o of sel.options) { if (o.value === unidad) { o.selected = true; break; } }
+            document.getElementById('modalEditarCompra').style.display = 'flex';
+        }
+        function cerrarModalEditar() {
+            document.getElementById('modalEditarCompra').style.display = 'none';
+        }
+        async function guardarEdicionCompra() {
+            const id       = document.getElementById('editId').value;
+            const cantidad = parseFloat(document.getElementById('editCantidad').value);
+            const costo    = parseFloat(document.getElementById('editCosto').value);
+            const unidad   = document.getElementById('editUnidad').value;
+            const proveedor= document.getElementById('editProveedor').value;
+            const fecha    = document.getElementById('editFecha').value;
+            if (!cantidad || cantidad <= 0 || !costo || costo <= 0) {
+                showNotification('Cantidad y Costo son obligatorios y deben ser positivos', 'error');
+                return;
+            }
+            try {
+                const resp = await fetch(`/inventario/compra/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cantidad, costoUnitario: costo, unidad, proveedor, fechaFactura: fecha })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showNotification('Registro actualizado y costo promedio recalculado', 'success');
+                    cerrarModalEditar();
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showNotification(data.error || 'Error al actualizar', 'error');
+                }
+            } catch(e) { showNotification('Error de conexión', 'error'); }
+        }
+        document.getElementById('modalEditarCompra').addEventListener('click', function(e) {
+            if (e.target === this) cerrarModalEditar();
+        });
     </script>
 </body>
 </html>
