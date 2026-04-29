@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><%= title || 'Sistema de Cocina' %></title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <% if (user) { %>
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+        <div class="sidebar-header">
+            <h2>🍳 COCINA</h2>
+            <p class="user-info">👤 <%= user.nombreCompleto %></p>
+            <span class="user-role"><%= user.rol.toUpperCase() %></span>
+        </div>
+        
+        <nav class="sidebar-nav">
+            <a href="/" class="nav-link">
+                <span class="icon">📊</span>
+                <span>Dashboard</span>
+            </a>
+            <a href="/catalogo" class="nav-link">
+                <span class="icon">📋</span>
+                <span>Catálogo</span>
+            </a>
+            <a href="/inventario" class="nav-link">
+                <span class="icon">📦</span>
+                <span>Inventario/Compras</span>
+            </a>
+            <a href="/recetas" class="nav-link">
+                <span class="icon">🍽️</span>
+                <span>Recetas</span>
+            </a>
+            <a href="/produccion" class="nav-link">
+                <span class="icon">👨‍🍳</span>
+                <span>Producción</span>
+            </a>
+            <a href="/reportes" class="nav-link">
+                <span class="icon">📈</span>
+                <span>Reportes</span>
+            </a>
+        </nav>
+        
+        <div class="sidebar-footer">
+            <form action="/logout" method="POST">
+                <button type="submit" class="btn-logout">
+                    🚪 Cerrar Sesión
+                </button>
+            </form>
+        </div>
+    </aside>
+    <% } %>
+    
+    <!-- CONTENIDO PRINCIPAL -->
+    <main class="main-content <%= user ? '' : 'full-width' %>">
+        <%- body %>
+    </main>
+    
+    <script src="/js/main.js"></script>
+</body>
+</html>

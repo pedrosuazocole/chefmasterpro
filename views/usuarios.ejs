@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Usuarios - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>👥 Gestión de Usuarios</h1>
+            <p class="subtitle">Administrá usuarios y sus permisos</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('lista')">Lista de Usuarios</button>
+            <button class="tab-btn" onclick="switchTab('crear')">Crear Usuario</button>
+            <button class="tab-btn" onclick="switchTab('auditoria')">Auditoría</button>
+        </div>
+        
+        <!-- TAB LISTA DE USUARIOS -->
+        <div id="tab-lista" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Usuarios del Sistema</h3>
+                </div>
+                <div class="card-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Usuario</th>
+                                <th>Nombre Completo</th>
+                                <th>Rol</th>
+                                <th>Estado</th>
+                                <th>Último Acceso</th>
+                                <th>Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <% usuarios.forEach(u => { %>
+                            <tr>
+                                <td><strong><%= u.username %></strong></td>
+                                <td><%= u.nombreCompleto %></td>
+                                <td>
+                                    <span class="badge badge-<%= u.rol %>">
+                                        <%= u.rol === 'admin' ? '👑 Admin' : u.rol === 'supervisor' ? '📊 Supervisor' : '👨‍🍳 Cocina' %>
+                                    </span>
+                                </td>
+                                <td>
+                                    <% if (u.activo) { %>
+                                        <span style="color: #21c354; font-weight: bold;">✅ Activo</span>
+                                    <% } else { %>
+                                        <span style="color: #ff4b4b; font-weight: bold;">❌ Inactivo</span>
+                                    <% } %>
+                                </td>
+                                <td><%= u.ultimoAcceso ? new Date(u.ultimoAcceso).toLocaleString('es-HN') : 'Nunca' %></td>
+                                <td>
+                                    <button class="btn btn-sm" onclick="editarUsuario(<%= u.id %>)" 
+                                            style="margin-right: 0.5rem;">✏️ Editar</button>
+                                    <button class="btn btn-sm" onclick="cambiarPassword(<%= u.id %>)" 
+                                            style="margin-right: 0.5rem; background: #0068c9;">🔑 Password</button>
+                                    <% if (u.id !== user.id) { %>
+                                        <button class="btn btn-sm" onclick="toggleUsuario(<%= u.id %>)" 
+                                                style="background: <%= u.activo ? '#ff4b4b' : '#21c354' %>;">
+                                            <%= u.activo ? '🚫 Desactivar' : '✅ Activar' %>
+                                        </button>
+                                    <% } %>
+                                </td>
+                            </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Estadísticas -->
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1.5rem;">
+                <div class="metric-card">
+                    <div class="metric-icon">👑</div>
+                    <div class="metric-content">
+                        <h3>Administradores</h3>
+                        <p class="metric-value"><%= usuarios.filter(u => u.rol === 'admin').length %></p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">📊</div>
+                    <div class="metric-content">
+                        <h3>Supervisores</h3>
+                        <p class="metric-value"><%= usuarios.filter(u => u.rol === 'supervisor').length %></p>
+                    </div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-icon">👨‍🍳</div>
+                    <div class="metric-content">
+                        <h3>Cocineros</h3>
+                        <p class="metric-value"><%= usuarios.filter(u => u.rol === 'cocinero').length %></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB CREAR USUARIO -->
+        <div id="tab-crear" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Crear Nuevo Usuario</h3>
+                </div>
+                <div class="card-body">
+                    <form id="formCrearUsuario" onsubmit="crearUsuario(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Usuario (Login)</label>
+                                <input type="text" id="username" required 
+                                       placeholder="Ej: jperez" pattern="[a-zA-Z0-9_]+"
+                                       title="Solo letras, números y guión bajo">
+                            </div>
+                            <div class="form-group">
+                                <label>Nombre Completo</label>
+                                <input type="text" id="nombreCompleto" required 
+                                       placeholder="Ej: Juan Pérez">
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Contraseña</label>
+                                <input type="password" id="password" required 
+                                       minlength="6" placeholder="Mínimo 6 caracteres">
+                            </div>
+                            <div class="form-group">
+                                <label>Confirmar Contraseña</label>
+                                <input type="password" id="passwordConfirm" required 
+                                       minlength="6" placeholder="Repetí la contraseña">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label>Rol / Privilegios</label>
+                            <select id="rol" required>
+                                <option value="">Seleccionar rol...</option>
+                                <option value="admin">👑 Administrador (acceso total)</option>
+                                <option value="supervisor">📊 Supervisor (reportes y consultas)</option>
+                                <option value="cocinero">👨‍🍳 Cocinero (producción y recetas)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="alert alert-warning" style="margin: 1rem 0;">
+                            <strong>ℹ️ Niveles de acceso:</strong><br>
+                            • <strong>Administrador:</strong> Acceso total al sistema, gestión de usuarios<br>
+                            • <strong>Supervisor:</strong> Consulta de reportes, inventario y recetas<br>
+                            • <strong>Cocinero:</strong> Producción de platos, consulta de recetas
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-block">
+                            👤 Crear Usuario
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB AUDITORÍA -->
+        <div id="tab-auditoria" class="tab-content">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Historial de Acciones (Auditoría)</h3>
+                </div>
+                <div class="card-body">
+                    <% if (auditoria && auditoria.length > 0) { %>
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Fecha/Hora</th>
+                                    <th>Usuario</th>
+                                    <th>Acción</th>
+                                    <th>Detalles</th>
+                                    <th>IP</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% auditoria.slice(-50).reverse().forEach(a => { 
+                                    const usr = usuarios.find(u => u.id === a.usuarioId);
+                                %>
+                                <tr>
+                                    <td><%= new Date(a.timestamp).toLocaleString('es-HN') %></td>
+                                    <td><strong><%= usr ? usr.username : 'Sistema' %></strong></td>
+                                    <td>
+                                        <span class="badge badge-action">
+                                            <%= a.accion %>
+                                        </span>
+                                    </td>
+                                    <td><%= a.detalles %></td>
+                                    <td><code><%= a.ip || 'N/A' %></code></td>
+                                </tr>
+                                <% }); %>
+                            </tbody>
+                        </table>
+                        <p class="text-muted" style="margin-top: 1rem; text-align: center;">
+                            Mostrando últimas 50 acciones
+                        </p>
+                    <% } else { %>
+                        <p class="text-center text-muted">No hay registros de auditoría aún</p>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <!-- MODAL EDITAR USUARIO -->
+    <div id="modalEditarUsuario" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="cerrarModal()">&times;</span>
+            <h3>Editar Usuario</h3>
+            <form id="formEditarUsuario" onsubmit="actualizarUsuario(event)">
+                <input type="hidden" id="editUserId">
+                <div class="form-group">
+                    <label>Nombre Completo</label>
+                    <input type="text" id="editNombreCompleto" required>
+                </div>
+                <div class="form-group">
+                    <label>Rol</label>
+                    <select id="editRol" required>
+                        <option value="admin">👑 Administrador</option>
+                        <option value="supervisor">📊 Supervisor</option>
+                        <option value="cocinero">👨‍🍳 Cocinero</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Guardar Cambios</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- MODAL CAMBIAR PASSWORD -->
+    <div id="modalPassword" class="modal" style="display: none;">
+        <div class="modal-content">
+            <span class="close" onclick="cerrarModalPassword()">&times;</span>
+            <h3>Cambiar Contraseña</h3>
+            <form id="formPassword" onsubmit="actualizarPassword(event)">
+                <input type="hidden" id="passwordUserId">
+                <div class="form-group">
+                    <label>Nueva Contraseña</label>
+                    <input type="password" id="newPassword" required minlength="6">
+                </div>
+                <div class="form-group">
+                    <label>Confirmar Contraseña</label>
+                    <input type="password" id="confirmPassword" required minlength="6">
+                </div>
+                <button type="submit" class="btn btn-primary btn-block">Cambiar Contraseña</button>
+            </form>
+        </div>
+    </div>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/usuarios.js"></script>
+    
+    <style>
+        .badge {
+            display: inline-block;
+            padding: 0.35rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .badge-admin { background: #ff4b4b; color: white; }
+        .badge-supervisor { background: #0068c9; color: white; }
+        .badge-cocinero { background: #21c354; color: white; }
+        .badge-action { background: var(--light); color: var(--text); }
+        
+        .modal {
+            position: fixed;
+            z-index: 10000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            position: relative;
+        }
+        .close {
+            position: absolute;
+            right: 1rem;
+            top: 1rem;
+            font-size: 2rem;
+            cursor: pointer;
+            color: #666;
+        }
+        .close:hover {
+            color: #000;
+        }
+    </style>
+</body>
+</html>

@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Producción - Sistema de Cocina</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>👨‍🍳 Control de Producción</h1>
+            <p class="subtitle">Procesá platos y descontá inventario automáticamente</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('procesar')">Procesar Producción</button>
+            <button class="tab-btn" onclick="switchTab('historial')">Historial</button>
+        </div>
+        
+        <div id="tab-procesar" class="tab-content active">
+            <% if (recetas && recetas.length > 0) { %>
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Nueva Producción</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="formProduccion" onsubmit="procesarProduccion(event)">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Seleccionar Plato</label>
+                                    <select id="selectPlato" required onchange="validarStock()">
+                                        <option value="">Elegí un plato...</option>
+                                        <% recetas.forEach(r => { %>
+                                            <option value="<%= r.plato %>"><%= r.plato %></option>
+                                        <% }); %>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Cantidad de Porciones</label>
+                                <input type="number" id="cantidadPorciones" min="1" value="1" required onchange="validarStock()" oninput="validarStock()">
+                                </div>
+                            </div>
+                            
+                            <div id="validacionStock" style="margin: 1.5rem 0;"></div>
+                            
+                            <button type="submit" id="btnProcesar" class="btn btn-primary btn-block" disabled>
+                                👨‍🍳 Procesar Producción
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            <% } else { %>
+                <div class="card">
+                    <div class="card-body">
+                        <p class="text-center text-muted">
+                            ⚠️ No hay recetas creadas. Primero creá una receta en el módulo de Recetas.
+                        </p>
+                        <div style="text-align: center; margin-top: 1rem;">
+                            <a href="/recetas" class="btn btn-primary">Ir a Recetas</a>
+                        </div>
+                    </div>
+                </div>
+            <% } %>
+        </div>
+        
+        <div id="tab-historial" class="tab-content">
+            <div class="card">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                    <h3>Historial de Producción</h3>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarCSVProduccion()" style="background:#21c354;color:white;">📊 Excel</button>
+                        <button class="btn btn-sm" onclick="exportarPDFProduccion()" style="background:#ff4b4b;color:white;">📄 PDF</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <!-- Buscador -->
+                    <div class="form-row" style="margin-bottom:1.25rem;">
+                        <div class="form-group">
+                            <label>🔍 Buscar en Historial</label>
+                            <input type="text" id="buscarProduccion"
+                                   placeholder="Buscar por plato o ID operación..."
+                                   onkeyup="filtrarProduccion()">
+                        </div>
+                        <div class="form-group">
+                            <label>Filtrar por Plato</label>
+                            <select id="filtroPlato" onchange="filtrarProduccion()">
+                                <option value="">Todos los platos</option>
+                                <% [...new Set(produccion.map(p=>p.plato))].sort().forEach(plato => { %>
+                                    <option value="<%= plato %>"><%= plato %></option>
+                                <% }); %>
+                            </select>
+                        </div>
+                    </div>
+
+                    <% if (produccion && produccion.length > 0) { %>
+                        <!-- Resumen -->
+                        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:1rem;margin-bottom:1.5rem;">
+                            <div style="background:#f0fff4;border:1px solid #21c354;border-radius:8px;padding:0.75rem;text-align:center;">
+                                <div style="font-size:1.4rem;font-weight:bold;color:#21c354;"><%= produccion.length %></div>
+                                <div style="font-size:0.82rem;color:#666;">Total Producciones</div>
+                            </div>
+                            <div style="background:#f0f4ff;border:1px solid #0068c9;border-radius:8px;padding:0.75rem;text-align:center;">
+                                <div style="font-size:1.4rem;font-weight:bold;color:#0068c9;">
+                                    <%= produccion.reduce((s,p)=>s+parseInt(p.cantidad||0),0) %>
+                                </div>
+                                <div style="font-size:0.82rem;color:#666;">Total Porciones</div>
+                            </div>
+                            <div style="background:#fff5f5;border:1px solid #ff4b4b;border-radius:8px;padding:0.75rem;text-align:center;">
+                                <div style="font-size:1.4rem;font-weight:bold;color:#ff4b4b;">
+                                    L. <%= produccion.reduce((s,p)=>s+parseFloat(p.costoProduccion||0),0).toFixed(2) %>
+                                </div>
+                                <div style="font-size:0.82rem;color:#666;">Costo Total</div>
+                            </div>
+                        </div>
+
+                        <div class="table-container">
+                            <table class="table" id="tablaProduccion">
+                                <thead>
+                                    <tr>
+                                        <th>#</th>
+                                        <th>Fecha</th>
+                                        <th>ID Operación</th>
+                                        <th>Plato</th>
+                                        <th>Cantidad</th>
+                                        <th>Costo Producción</th>
+                                        <th>Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="tbodyProduccion">
+                                    <% produccion.forEach((p, idx) => { %>
+                                    <tr data-plato="<%= p.plato.toLowerCase() %>"
+                                        data-op="<%= (p.idOperacion||'').toLowerCase() %>">
+                                        <td style="color:#999;font-size:0.82rem;"><%= produccion.length - idx %></td>
+                                        <td style="white-space:nowrap;font-size:0.88rem;">
+                                            <%= new Date(p.fecha).toLocaleDateString('es-HN') %><br>
+                                            <small style="color:#999;"><%= new Date(p.fecha).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'}) %></small>
+                                        </td>
+                                        <td><code style="background:#f0f4ff;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.8rem;"><%= p.idOperacion %></code></td>
+                                        <td><strong><%= p.plato %></strong></td>
+                                        <td style="text-align:center;">
+                                            <span style="background:#e8f4fd;padding:0.2rem 0.6rem;border-radius:12px;font-weight:bold;">
+                                                <%= p.cantidad %> ud<%= p.cantidad>1?'s':'' %>
+                                            </span>
+                                        </td>
+                                        <td style="font-weight:bold;color:#21c354;">
+                                            L. <%= parseFloat(p.costoProduccion||0).toFixed(2) %>
+                                        </td>
+                                        <td style="white-space:nowrap;">
+                                            <button class="btn btn-sm"
+                                                    onclick="abrirEditarProduccion('<%= p.id %>','<%= p.plato %>',<%= p.cantidad %>)"
+                                                    style="background:#0068c9;color:white;padding:0.3rem 0.6rem;border-radius:6px;margin-right:0.25rem;">
+                                                ✏️ Editar
+                                            </button>
+                                            <button class="btn btn-sm"
+                                                    onclick="eliminarProduccion('<%= p.id %>')"
+                                                    style="background:#ff4b4b;color:white;padding:0.3rem 0.6rem;border-radius:6px;">
+                                                🔄 Revertir
+                                            </button>
+                                        </td>
+                                    </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                        <p style="margin-top:0.5rem;font-size:0.82rem;color:#999;text-align:right;">
+                            Total: <%= produccion.length %> registros
+                        </p>
+                    <% } else { %>
+                        <div style="text-align:center;padding:3rem;color:#999;">
+                            <div style="font-size:3rem;">👨‍🍳</div>
+                            <p>No hay producciones registradas aún</p>
+                        </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL EDITAR PRODUCCIÓN -->
+    <div id="modalEditarProd" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);
+         z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:16px;width:100%;max-width:420px;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="background:linear-gradient(135deg,#0068c9,#004a8f);padding:1.2rem 1.5rem;
+                        display:flex;justify-content:space-between;align-items:center;border-radius:16px 16px 0 0;">
+                <h3 style="margin:0;color:white;font-size:1rem;">✏️ Editar Producción</h3>
+                <button onclick="cerrarEditarProduccion()" style="background:rgba(255,255,255,0.2);border:none;
+                        color:white;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+            <div style="padding:1.5rem;">
+                <input type="hidden" id="editProdId">
+                <div class="form-group">
+                    <label style="font-weight:600;">Plato</label>
+                    <input type="text" id="editProdPlato" readonly
+                           style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:0.6rem;width:100%;box-sizing:border-box;">
+                </div>
+                <div class="form-group">
+                    <label style="font-weight:600;">Nueva Cantidad de Porciones *</label>
+                    <input type="number" id="editProdCant" min="1"
+                           style="border:1px solid #ddd;border-radius:6px;padding:0.6rem;width:100%;box-sizing:border-box;">
+                </div>
+                <div style="background:#fff3cd;border-radius:8px;padding:0.75rem;margin-bottom:1rem;font-size:0.88rem;">
+                    ⚠️ El sistema recalculará el inventario según la diferencia de porciones.
+                </div>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <button onclick="cerrarEditarProduccion()"
+                            style="padding:0.6rem 1.2rem;border:1px solid #ddd;border-radius:8px;cursor:pointer;background:white;">
+                        Cancelar
+                    </button>
+                    <button id="btnGuardarProd" onclick="guardarEdicionProduccion()"
+                            style="padding:0.6rem 1.4rem;background:#0068c9;color:white;border:none;border-radius:8px;cursor:pointer;font-weight:bold;">
+                        💾 Guardar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/main.js"></script>
+    <script>
+        let inventarioActual = [];
+        
+        async function cargarInventario() {
+            const response = await fetch('/api/inventario');
+            inventarioActual = await response.json();
+        }
+        
+        async function validarStock() {
+            const plato = document.getElementById('selectPlato').value;
+            const cantidad = parseInt(document.getElementById('cantidadPorciones').value);
+            const btn = document.getElementById('btnProcesar');
+
+            // Si no hay plato o cantidad válida, bloquear inmediatamente
+            if (!plato || !cantidad || cantidad < 1) {
+                btn.disabled = true;
+                return;
+            }
+
+            const response = await fetch(`/api/receta/${plato}`);
+            const receta = await response.json();
+            const validacion = document.getElementById('validacionStock');
+            let html = '<table class="table"><thead><tr><th>Ingrediente</th><th>Necesario</th><th>Stock</th><th>Estado</th></tr></thead><tbody>';
+            let todoOk = true;
+            receta.detalleReceta.forEach(ing => {
+                const necesario = parseFloat(ing.Cantidad) * cantidad;
+                const inv = inventarioActual.find(i => i.codigo === ing.Codigo);
+                const stock = inv ? inv.stock : 0;
+                const estado = stock >= necesario;
+                if (!estado) todoOk = false;
+                html += `<tr><td>${ing.Nombre}</td><td>${necesario.toFixed(2)}</td><td>${stock.toFixed(2)}</td>
+                    <td>${estado ? '<span style="color:#21c354;">✅ OK</span>' : '<span style="color:#ff4b4b;font-weight:bold;">❌ FALTA</span>'}</td></tr>`;
+            });
+            html += '</tbody></table>';
+
+            // Mostrar mensaje de bloqueo si falta stock
+            if (!todoOk) {
+                html += '<div style="background:#ffe6e6;border:1px solid #ff4b4b;border-radius:8px;padding:0.75rem;margin-top:0.75rem;color:#c00;font-weight:bold;">⛔ No se puede procesar: hay ingredientes con FALTA de stock.</div>';
+            }
+
+            validacion.innerHTML = html;
+            btn.disabled = !todoOk;
+        }
+        
+        async function procesarProduccion(event) {
+            event.preventDefault();
+            const plato = document.getElementById('selectPlato').value;
+            const cantidad = document.getElementById('cantidadPorciones').value;
+            const btn = document.getElementById('btnProcesar');
+
+            // Doble validación en frontend antes de enviar
+            if (btn.disabled) {
+                showNotification('⛔ No se puede procesar: verificá el stock de ingredientes', 'error');
+                return;
+            }
+
+            if (!confirm(`¿Confirmas procesar ${cantidad} porción(es) de ${plato}?`)) return;
+            try {
+                btn.disabled = true; btn.textContent = '⏳ Procesando...';
+                const response = await fetch('/produccion/procesar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plato, cantidad })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(`✅ Producción procesada: ${data.idOperacion}`, 'success');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    // Si el backend también rechaza (doble seguridad), mostrar error y re-validar
+                    showNotification(data.error || 'Error al procesar', 'error');
+                    btn.disabled = true;
+                    btn.textContent = '👨‍🍳 Procesar Producción';
+                    await validarStock(); // Re-validar para reflejar estado real
+                }
+            } catch (error) { showNotification('Error de conexión', 'error'); }
+        }
+        
+        async function eliminarProduccion(id) {
+            if (!confirm('¿Confirmas revertir esta producción? Se restaurará el stock de inventario.')) return;
+            try {
+                const response = await fetch(`/produccion/eliminar/${id}`, { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Producción revertida y stock restaurado', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                }
+            } catch (error) { showNotification('Error al revertir', 'error'); }
+        }
+
+        // ── EDITAR PRODUCCIÓN ────────────────────────────────
+        function abrirEditarProduccion(id, plato, cantidad) {
+            document.getElementById('editProdId').value    = id;
+            document.getElementById('editProdPlato').value = plato;
+            document.getElementById('editProdCant').value  = cantidad;
+            document.getElementById('modalEditarProd').style.display = 'flex';
+        }
+        function cerrarEditarProduccion() {
+            document.getElementById('modalEditarProd').style.display = 'none';
+        }
+        async function guardarEdicionProduccion() {
+            const id       = document.getElementById('editProdId').value;
+            const cantidad = parseInt(document.getElementById('editProdCant').value);
+            if (!cantidad || cantidad < 1) { showNotification('Cantidad debe ser mayor a 0','error'); return; }
+            try {
+                const btn = document.getElementById('btnGuardarProd');
+                btn.disabled = true; btn.textContent = '⏳ Guardando...';
+                const r = await fetch(`/produccion/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cantidad })
+                });
+                const data = await r.json();
+                if (data.success) {
+                    showNotification('✅ Producción actualizada y stock recalculado', 'success');
+                    cerrarEditarProduccion();
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showNotification(data.error || 'Error al actualizar', 'error');
+                    btn.disabled = false; btn.textContent = '💾 Guardar';
+                }
+            } catch(e) { showNotification('Error de conexión','error'); }
+        }
+        document.getElementById('modalEditarProd').addEventListener('click', function(e){
+            if (e.target === this) cerrarEditarProduccion();
+        });
+
+        // ── BUSCADOR HISTORIAL ───────────────────────────────
+        function filtrarProduccion() {
+            const busq  = document.getElementById('buscarProduccion').value.toLowerCase();
+            const plato = document.getElementById('filtroPlato').value.toLowerCase();
+            const filas = document.querySelectorAll('#tbodyProduccion tr');
+            filas.forEach(fila => {
+                const fp = fila.dataset.plato || '';
+                const fo = fila.dataset.op    || '';
+                const okBusq  = !busq  || fp.includes(busq)  || fo.includes(busq);
+                const okPlato = !plato || fp === plato;
+                fila.style.display = (okBusq && okPlato) ? '' : 'none';
+            });
+        }
+
+        // ── EXPORTACIONES ────────────────────────────────────
+        function exportarCSVProduccion() {
+            window.location.href = '/api/exportar/produccion/excel';
+        }
+        function exportarPDFProduccion() {
+            window.open('/api/exportar/produccion/pdf', '_blank');
+        }
+
+        document.addEventListener('DOMContentLoaded', () => { cargarInventario(); });
+    </script>
+</body>
+</html>

@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kardex - Chef Master Pro</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <style>
+        .kardex-entrada { background: #f0fff4; }
+        .kardex-salida  { background: #fff5f5; }
+        .badge-entrada  { background:#21c354; color:white; padding:0.25rem 0.6rem; border-radius:12px; font-size:0.8rem; white-space:nowrap; }
+        .badge-salida   { background:#ff4b4b; color:white; padding:0.25rem 0.6rem; border-radius:12px; font-size:0.8rem; white-space:nowrap; }
+        .val-entrada    { color:#21c354; font-weight:bold; }
+        .val-salida     { color:#ff4b4b; font-weight:bold; }
+        .kardex-resumen { background:linear-gradient(135deg,#667eea,#764ba2); color:white; border-radius:12px; padding:1.5rem; margin-bottom:1.5rem; }
+        .resumen-grid   { display:grid; grid-template-columns:repeat(auto-fit,minmax(160px,1fr)); gap:1rem; margin-top:1rem; }
+        .resumen-item   { background:rgba(255,255,255,0.15); border-radius:8px; padding:1rem; text-align:center; }
+        .resumen-item h4{ margin:0; font-size:0.85rem; opacity:0.9; }
+        .resumen-item p { margin:0.5rem 0 0; font-size:1.4rem; font-weight:bold; }
+    </style>
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📋 Kardex Detallado</h1>
+            <p class="subtitle">Trazabilidad completa de entradas y salidas por producto</p>
+        </header>
+        
+        <%
+        // Calcular resumen general
+        const totalEntradas = kardex.filter(k => k.tipo === 'ENTRADA').reduce((s,k) => s + parseFloat(k.valorTotal||0), 0);
+        const totalSalidas  = kardex.filter(k => k.tipo === 'SALIDA').reduce((s,k) => s + parseFloat(k.valorTotal||0), 0);
+        const movEntradas   = kardex.filter(k => k.tipo === 'ENTRADA').length;
+        const movSalidas    = kardex.filter(k => k.tipo === 'SALIDA').length;
+        %>
+        
+        <!-- RESUMEN -->
+        <div class="kardex-resumen">
+            <h3 style="margin:0;">📊 Resumen General del Kardex</h3>
+            <div class="resumen-grid">
+                <div class="resumen-item">
+                    <h4>Total Movimientos</h4>
+                    <p><%= kardex.length %></p>
+                </div>
+                <div class="resumen-item">
+                    <h4>📥 Entradas</h4>
+                    <p><%= movEntradas %></p>
+                </div>
+                <div class="resumen-item">
+                    <h4>📤 Salidas</h4>
+                    <p><%= movSalidas %></p>
+                </div>
+                <div class="resumen-item">
+                    <h4>Valor Entradas</h4>
+                    <p>L. <%= totalEntradas.toFixed(2) %></p>
+                </div>
+                <div class="resumen-item">
+                    <h4>Valor Salidas</h4>
+                    <p>L. <%= totalSalidas.toFixed(2) %></p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- FILTROS -->
+        <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <h3>🔍 Filtros</h3>
+                <button class="btn btn-sm" onclick="exportarExcel('kardex','kardex')" 
+                        style="background:#21c354;color:white;">📊 Exportar Excel</button>
+            </div>
+            <div class="card-body">
+                <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:0.75rem;">
+                    <div class="form-group" style="margin:0;">
+                        <label>Fecha Inicio</label>
+                        <input type="date" id="kardexFechaInicio" onchange="filtrarKardex()">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Fecha Final</label>
+                        <input type="date" id="kardexFechaFinal" onchange="filtrarKardex()">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Producto</label>
+                        <select id="filtroProducto" onchange="filtrarKardex()">
+                            <option value="">📦 Todos</option>
+                            <% inventario.forEach(i => { %>
+                                <option value="<%= i.ingrediente.toLowerCase() %>"><%= i.ingrediente %></option>
+                            <% }); %>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Tipo</label>
+                        <select id="filtroTipo" onchange="filtrarKardex()">
+                            <option value="">Todos</option>
+                            <option value="ENTRADA">📥 Entrada</option>
+                            <option value="SALIDA">📤 Salida</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label>Documento</label>
+                        <input type="text" id="buscarKardex" placeholder="FACT-001, PROD-..." onkeyup="filtrarKardex()">
+                    </div>
+                    <div class="form-group" style="margin:0;display:flex;align-items:flex-end;">
+                        <button class="btn btn-sm" onclick="limpiarFiltros()" style="background:#999;color:white;width:100%;">🔄 Limpiar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TABLA KARDEX -->
+        <div class="card">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                <h3>Movimientos de Kardex</h3>
+                <span id="contadorMovimientos" style="background:#f0f4ff;padding:0.3rem 0.8rem;border-radius:12px;font-size:0.9rem;">
+                    Aplicá un filtro para ver movimientos
+                </span>
+            </div>
+            <div class="card-body">
+                <!-- Mensaje inicial -->
+                <div id="kardexMensajeInicial" style="text-align:center;padding:3rem;color:#999;">
+                    <div style="font-size:3rem;">🔍</div>
+                    <h4>Seleccioná al menos un filtro</h4>
+                    <p style="font-size:0.9rem;">Usá los filtros de arriba para consultar los movimientos del Kardex.</p>
+                </div>
+
+                <% if (kardex && kardex.length > 0) { %>
+                <div id="kardexContenido" style="display:none;">
+                    <div class="table-container">
+                        <table class="table" id="tablaKardex" style="font-size:0.9rem;">
+                        <thead>
+                            <tr>
+                                <th>Fecha y Hora</th>
+                                <th>Producto</th>
+                                <th>Tipo</th>
+                                <th>Documento</th>
+                                <th style="color:#21c354;">📥 Entrada</th>
+                                <th style="color:#ff4b4b;">📤 Salida</th>
+                                <th>Costo Unit.</th>
+                                <th>Costo Promedio</th>
+                                <th>Valor Mov.</th>
+                                <th>Saldo (Stock)</th>
+                                <th>Observaciones</th>
+                            </tr>
+                        </thead>
+                        <tbody id="kardexBody">
+                            <% 
+                            // Mostrar más recientes primero
+                            const kardexOrdenado = kardex.slice().sort((a,b) => new Date(a.fecha) - new Date(b.fecha));
+                            kardexOrdenado.forEach((k, idx) => {
+                                const esEntrada = k.tipo === 'ENTRADA';
+                                const cantidad   = parseFloat(k.cantidad || 0);
+                                const costoUnit  = parseFloat(k.costoUnitario || 0);
+                                const valorTotal = parseFloat(k.valorTotal || cantidad * costoUnit);
+                                const stockNuevo = parseFloat(k.stockNuevo || 0);
+                                const stockAnt   = parseFloat(k.stockAnterior || 0);
+                                // Costo promedio = valorTotal movimiento / cantidad movimiento
+                                const costoPromedio = cantidad > 0 ? (valorTotal / cantidad) : costoUnit;
+                            %>
+                            <tr class="<%= esEntrada ? 'kardex-entrada' : 'kardex-salida' %>"
+                                data-producto="<%= (k.producto||'').toLowerCase() %>"
+                                data-tipo="<%= k.tipo %>"
+                                data-doc="<%= (k.documento||'').toLowerCase() %>"
+                                data-fecha="<%= new Date(k.fecha).toISOString().split('T')[0] %>"
+                                data-texto="<%= (k.producto||'').toLowerCase() %> <%= (k.documento||'').toLowerCase() %> <%= (k.observaciones||'').toLowerCase() %>">
+                                
+                                <td style="white-space:nowrap;font-size:0.82rem;">
+                                    <%= new Date(k.fecha).toLocaleDateString('es-HN') %><br>
+                                    <small style="color:#999;"><%= new Date(k.fecha).toLocaleTimeString('es-HN', {hour:'2-digit',minute:'2-digit'}) %></small>
+                                </td>
+                                
+                                <td><strong><%= k.producto %></strong></td>
+                                
+                                <td>
+                                    <span class="<%= esEntrada ? 'badge-entrada' : 'badge-salida' %>">
+                                        <%= esEntrada ? '📥 ENTRADA' : '📤 SALIDA' %>
+                                    </span>
+                                </td>
+                                
+                                <td>
+                                    <code style="background:#f0f4ff;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.82rem;">
+                                        <%= k.documento %>
+                                    </code>
+                                </td>
+                                
+                                <td class="val-entrada">
+                                    <%= esEntrada ? cantidad.toFixed(2) : '—' %>
+                                </td>
+                                
+                                <td class="val-salida">
+                                    <%= !esEntrada ? cantidad.toFixed(2) : '—' %>
+                                </td>
+                                
+                                <td style="text-align:right;">
+                                    L. <%= costoUnit.toFixed(2) %>
+                                </td>
+                                
+                                <td style="text-align:right;color:#0068c9;font-weight:bold;">
+                                    L. <%= costoPromedio.toFixed(2) %>
+                                </td>
+                                
+                                <td style="text-align:right;font-weight:bold;">
+                                    L. <%= valorTotal.toFixed(2) %>
+                                </td>
+                                
+                                <td style="text-align:right;">
+                                    <strong style="font-size:1.05rem;color:#333;"><%= stockNuevo.toFixed(2) %></strong>
+                                    <br>
+                                    <small style="color:#999;">Ant: <%= stockAnt.toFixed(2) %></small>
+                                </td>
+                                
+                                <td style="font-size:0.82rem;max-width:160px;">
+                                    <small style="color:#666;"><%= k.observaciones || '—' %></small>
+                                </td>
+                            </tr>
+                            <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+                <p class="text-muted" style="margin-top:0.75rem;font-size:0.85rem;text-align:right;">
+                    Total: <%= kardex.length %> movimientos.
+                </p>
+                </div><!-- /kardexContenido -->
+                <% } else { %>
+                <div style="text-align:center;padding:4rem;color:#999;">
+                    <div style="font-size:4rem;">📋</div>
+                    <h3>No hay movimientos en el Kardex</h3>
+                    <p>Los movimientos se registran automáticamente al registrar compras o procesar producción.</p>
+                </div>
+                <% } %>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/exportar.js"></script>
+    <script>
+        function hayFiltroActivo() {
+            return document.getElementById('filtroProducto').value     !== '' ||
+                   document.getElementById('filtroTipo').value         !== '' ||
+                   document.getElementById('buscarKardex').value.trim()!== '' ||
+                   document.getElementById('kardexFechaInicio').value  !== '' ||
+                   document.getElementById('kardexFechaFinal').value   !== '';
+        }
+
+        function filtrarKardex() {
+            const producto    = document.getElementById('filtroProducto').value;
+            const tipo        = document.getElementById('filtroTipo').value;
+            const busqueda    = document.getElementById('buscarKardex').value.toLowerCase().trim();
+            const fechaInicio = document.getElementById('kardexFechaInicio').value;
+            const fechaFinal  = document.getElementById('kardexFechaFinal').value;
+
+            const msgInicial  = document.getElementById('kardexMensajeInicial');
+            const contenido   = document.getElementById('kardexContenido');
+            const counter     = document.getElementById('contadorMovimientos');
+
+            // Carga bajo demanda: solo muestra si hay al menos un filtro
+            if (!hayFiltroActivo()) {
+                if (msgInicial) msgInicial.style.display = 'block';
+                if (contenido)  contenido.style.display  = 'none';
+                if (counter)    counter.textContent = 'Aplicá un filtro para ver movimientos';
+                return;
+            }
+
+            if (msgInicial) msgInicial.style.display = 'none';
+            if (contenido)  contenido.style.display  = 'block';
+
+            const filas = document.querySelectorAll('#kardexBody tr');
+            let visibles = 0;
+
+            filas.forEach(fila => {
+                const dprod = fila.dataset.producto || '';
+                const dtipo = fila.dataset.tipo     || '';
+                const dtxt  = fila.dataset.texto    || '';
+                const dfech = fila.dataset.fecha    || '';
+
+                const okProd = !producto    || dprod === producto;
+                const okTipo = !tipo        || dtipo === tipo;
+                const okBusc = !busqueda    || dtxt.includes(busqueda);
+                const okFecI = !fechaInicio || dfech >= fechaInicio;
+                const okFecF = !fechaFinal  || dfech <= fechaFinal;
+
+                const mostrar = okProd && okTipo && okBusc && okFecI && okFecF;
+                fila.style.display = mostrar ? '' : 'none';
+                if (mostrar) visibles++;
+            });
+
+            if (counter) counter.textContent = `${visibles} movimiento(s)`;
+        }
+
+        function limpiarFiltros() {
+            document.getElementById('filtroProducto').value     = '';
+            document.getElementById('filtroTipo').value         = '';
+            document.getElementById('buscarKardex').value       = '';
+            document.getElementById('kardexFechaInicio').value  = '';
+            document.getElementById('kardexFechaFinal').value   = '';
+            filtrarKardex();
+        }
+    </script>
+</body>
+</html>

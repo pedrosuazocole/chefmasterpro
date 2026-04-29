@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventario - Chef Master Pro</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📦 Inventario y Compras</h1>
+            <p class="subtitle">Registrá facturas y controlá el stock</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('registrar')">📝 Registrar Compra</button>
+            <button class="tab-btn" onclick="switchTab('stock')">📦 Stock Actual</button>
+            <button class="tab-btn" onclick="switchTab('historial')">📋 Historial</button>
+        </div>
+        
+        <!-- TAB REGISTRAR COMPRA -->
+        <div id="tab-registrar" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Nueva Factura de Compra</h3>
+                </div>
+                <div class="card-body">
+                    <form id="formCompra" onsubmit="registrarCompra(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>No. de Factura *</label>
+                                <input type="text" id="noFactura" required placeholder="Ej: 001-2026">
+                            </div>
+                            <div class="form-group">
+                                <label>Fecha de Factura *</label>
+                                <input type="date" id="fechaFactura" required value="<%= new Date().toISOString().split('T')[0] %>">
+                            </div>
+                            <div class="form-group">
+                                <label>Proveedor</label>
+                                <input type="text" id="proveedor" placeholder="Nombre del proveedor">
+                            </div>
+                        </div>
+                        
+                        <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid var(--border);">
+                        <h4 style="margin-bottom: 1rem;">Productos de la Factura</h4>
+                        
+                        <div id="productosCompra"></div>
+                        
+                        <button type="button" class="btn btn-sm" onclick="agregarProductoCompra()" 
+                                style="margin-bottom: 1.5rem; background: var(--primary); color: white;">
+                            ➕ Agregar Producto
+                        </button>
+                        
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--light); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                            <h3>Total Factura: <span id="totalFactura" style="color: var(--primary);">L. 0.00</span></h3>
+                            <button type="submit" class="btn btn-primary">💾 Guardar Factura</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB STOCK ACTUAL -->
+        <div id="tab-stock" class="tab-content">
+            <div class="card">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                    <h3>Stock Actual de Inventario</h3>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarExcel('inventario','inventario')" style="background:#21c354;color:white;">📊 Excel</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="margin-bottom:1rem;">
+                        <input type="text" id="buscarStock" placeholder="🔍 Buscar ingrediente..." 
+                               onkeyup="filtrarStock()" 
+                               style="width:100%;padding:0.6rem;border:1px solid var(--border);border-radius:6px;font-size:1rem;">
+                    </div>
+                    <div class="table-container">
+                        <table class="table" id="tablaStock">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Ingrediente</th>
+                                    <th>Stock</th>
+                                    <th>Unidad</th>
+                                    <th>Costo Unitario</th>
+                                    <th>Costo Promedio</th>
+                                    <th>Valor Total</th>
+                                    <th>Estado</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyStock">
+                                <tr><td colspan="8" class="text-center text-muted">Cargando inventario...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        
+        <!-- TAB HISTORIAL -->
+        <div id="tab-historial" class="tab-content">
+            <div class="card">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                    <h3>Historial de Compras — Por Factura</h3>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
+                        <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarExcel('historial','historial_compras')" style="background:#21c354;color:white;">📊 Excel</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:0.75rem;margin-bottom:1.25rem;">
+                        <div class="form-group" style="margin:0;"><label>Fecha Inicio</label><input type="date" id="fechaInicio" onchange="filtrarFacturas()"></div>
+                        <div class="form-group" style="margin:0;"><label>Fecha Final</label><input type="date" id="fechaFinal" onchange="filtrarFacturas()"></div>
+                        <div class="form-group" style="margin:0;"><label>Proveedor</label><input type="text" id="filtroProveedor" placeholder="Proveedor..." onkeyup="filtrarFacturas()"></div>
+                        <div class="form-group" style="margin:0;"><label>No. Factura</label><input type="text" id="buscarHistorial" placeholder="001-2026..." onkeyup="filtrarFacturas()"></div>
+                        <div class="form-group" style="margin:0;"><label>Producto</label><input type="text" id="filtroProductoHist" placeholder="Producto..." onkeyup="filtrarFacturas()"></div>
+                    </div>
+                    <% if (facturas && facturas.length > 0) { %>
+                    <div id="listaFacturas">
+                    <% facturas.forEach(function(f, fi) { %>
+                    <div class="factura-card"
+                         style="border:1px solid #e0e0e0;border-radius:10px;margin-bottom:0.9rem;overflow:hidden;"
+                         data-factura="<%= f.noFactura.toLowerCase() %>"
+                         data-proveedor="<%= f.proveedor.toLowerCase() %>"
+                         data-fecha="<%= f.fechaFactura %>"
+                         data-productos="<%= f.items.map(function(i){return i.producto;}).join(',').toLowerCase() %>">
+                        <div style="background:#f0f4ff;padding:0.7rem 1rem;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.5rem;">
+                            <div style="display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+                                <code style="background:#0068c9;color:white;padding:0.2rem 0.6rem;border-radius:6px;font-size:0.88rem;">FACT-<%= f.noFactura %></code>
+                                <span style="color:#555;font-size:0.88rem;">📅 <%= f.fechaFactura %></span>
+                                <% if (f.proveedor) { %><span style="color:#555;font-size:0.88rem;">🏪 <%= f.proveedor %></span><% } %>
+                                <strong style="color:#21c354;">L. <%= f.totalFactura.toFixed(2) %></strong>
+                                <span style="color:#888;font-size:0.82rem;"><%= f.items.length %> ítem(s)</span>
+                            </div>
+                            <div style="display:flex;gap:0.4rem;">
+                                <button class="btn-editar-factura" data-factura="<%= f.noFactura %>"
+                                        style="background:#0068c9;color:white;border:none;border-radius:6px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.85rem;">
+                                    ✏️ Editar
+                                </button>
+                                <button class="btn-eliminar-factura" data-factura="<%= f.noFactura %>"
+                                        style="background:#ff4b4b;color:white;border:none;border-radius:6px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.85rem;">
+                                    🗑️ Eliminar
+                                </button>
+                                <button onclick="toggleDetalle('det-<%= fi %>')"
+                                        style="background:#f9f9f9;border:1px solid #ddd;border-radius:6px;padding:0.3rem 0.7rem;cursor:pointer;font-size:0.82rem;">
+                                    👁 Detalle
+                                </button>
+                            </div>
+                        </div>
+                        <div id="det-<%= fi %>" style="display:none;padding:0.75rem;">
+                            <table style="width:100%;border-collapse:collapse;font-size:0.87rem;">
+                                <thead><tr style="background:#f8f9fa;">
+                                    <th style="padding:0.35rem 0.6rem;border-bottom:1px solid #eee;text-align:left;">Producto</th>
+                                    <th style="padding:0.35rem 0.6rem;border-bottom:1px solid #eee;text-align:right;">Cantidad</th>
+                                    <th style="padding:0.35rem 0.6rem;border-bottom:1px solid #eee;">Unidad</th>
+                                    <th style="padding:0.35rem 0.6rem;border-bottom:1px solid #eee;text-align:right;">Costo Unit.</th>
+                                    <th style="padding:0.35rem 0.6rem;border-bottom:1px solid #eee;text-align:right;">Total</th>
+                                </tr></thead>
+                                <tbody>
+                                <% f.items.forEach(function(item) { %>
+                                <tr>
+                                    <td style="padding:0.35rem 0.6rem;"><strong><%= item.producto %></strong></td>
+                                    <td style="padding:0.35rem 0.6rem;text-align:right;"><%= parseFloat(item.cantidad).toFixed(2) %></td>
+                                    <td style="padding:0.35rem 0.6rem;"><span style="background:#e8f4fd;padding:0.1rem 0.35rem;border-radius:4px;font-size:0.8rem;"><%= item.unidad||'Unidad' %></span></td>
+                                    <td style="padding:0.35rem 0.6rem;text-align:right;">L. <%= parseFloat(item.costoUnitario).toFixed(2) %></td>
+                                    <td style="padding:0.35rem 0.6rem;text-align:right;"><strong style="color:#21c354;">L. <%= parseFloat(item.costoTotal).toFixed(2) %></strong></td>
+                                </tr>
+                                <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    <% }); %>
+                    </div>
+                    <p style="margin-top:0.5rem;font-size:0.82rem;color:#999;text-align:right;">
+                        Total facturas: <span id="contadorFacturas"><%= facturas.length %></span>
+                    </p>
+                    <% } else { %>
+                    <div style="text-align:center;padding:3rem;color:#999;">
+                        <div style="font-size:3rem;">📋</div>
+                        <p>No hay compras registradas aún</p>
+                        <button class="btn btn-primary" onclick="switchTab('registrar')">➕ Registrar Primera Compra</button>
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/exportar.js"></script>
+    <script src="/js/inventario.js"></script>
+
+    <!-- MODAL EDITAR COMPRA -->
+    <div id="modalEditarCompra" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);
+         z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:14px;width:100%;max-width:520px;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#0068c9,#0050a0);padding:1.2rem 1.5rem;
+                        display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;color:white;font-size:1.05rem;">✏️ Modificar Registro de Compra</h3>
+                <button onclick="cerrarModalEditar()" style="background:rgba(255,255,255,0.2);border:none;
+                        color:white;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+            <div style="padding:1.5rem;">
+                <input type="hidden" id="editId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><strong>Producto</strong></label>
+                        <input type="text" id="editProducto" readonly
+                               style="background:#f5f5f5;cursor:not-allowed;">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha Factura</label>
+                        <input type="date" id="editFecha">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Cantidad *</label>
+                        <input type="number" id="editCantidad" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Unidad</label>
+                        <select id="editUnidad">
+                            <option>Unidad</option><option>Libra</option><option>Kg</option>
+                            <option>Gramo</option><option>Litro</option><option>Ml</option>
+                            <option>Onza</option><option>Docena</option><option>Caja</option><option>Bolsa</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Costo Unitario (L.) *</label>
+                        <input type="number" id="editCosto" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Proveedor</label>
+                        <input type="text" id="editProveedor" placeholder="Nombre del proveedor">
+                    </div>
+                </div>
+                <div style="background:#f0f4ff;border-radius:8px;padding:0.75rem;margin-bottom:1rem;font-size:0.9rem;">
+                    ⚠️ Al guardar se recalculará automáticamente el <strong>costo promedio</strong> del inventario.
+                </div>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <button onclick="cerrarModalEditar()" 
+                            style="background:#999;color:white;border:none;padding:0.6rem 1.2rem;border-radius:6px;cursor:pointer;">
+                        Cancelar
+                    </button>
+                    <button onclick="guardarEdicionCompra()"
+                            style="background:#0068c9;color:white;border:none;padding:0.6rem 1.5rem;border-radius:6px;cursor:pointer;font-weight:bold;">
+                        💾 Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR FACTURA COMPLETA -->
+    <div id="modalEditarFactura" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);
+         z-index:9999;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;">
+        <div style="background:white;border-radius:14px;width:100%;max-width:780px;margin:1rem auto;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.35);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#0068c9,#0050a0);padding:1.2rem 1.5rem;
+                        display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;color:white;font-size:1.05rem;">✏️ Editar Factura Completa</h3>
+                <button onclick="cerrarModalFactura()" style="background:rgba(255,255,255,0.2);border:none;
+                        color:white;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+            <div style="padding:1.5rem;">
+                <input type="hidden" id="facturaNoEdit">
+                <div class="form-row" style="margin-bottom:1rem;">
+                    <div class="form-group">
+                        <label>No. Factura (solo lectura)</label>
+                        <input type="text" id="facturaNombreEdit" readonly style="background:#f5f5f5;">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha *</label>
+                        <input type="date" id="facturaFechaEdit">
+                    </div>
+                    <div class="form-group">
+                        <label>Proveedor</label>
+                        <input type="text" id="facturaProveedorEdit" placeholder="Nombre del proveedor">
+                    </div>
+                </div>
+
+                <h4 style="margin-bottom:0.75rem;">Productos de la Factura</h4>
+                <div style="overflow-x:auto;margin-bottom:0.75rem;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                        <thead>
+                            <tr style="background:#f0f4ff;">
+                                <th style="padding:0.5rem;text-align:left;">Producto</th>
+                                <th style="padding:0.5rem;text-align:left;">Cantidad</th>
+                                <th style="padding:0.5rem;text-align:left;">Unidad</th>
+                                <th style="padding:0.5rem;text-align:left;">Costo Unit.</th>
+                                <th style="padding:0.5rem;text-align:right;">Subtotal</th>
+                                <th style="padding:0.5rem;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyEditFactura"></tbody>
+                        <tfoot>
+                            <tr style="background:#f9f9f9;border-top:2px solid #ddd;">
+                                <td colspan="4" style="padding:0.6rem;text-align:right;font-weight:bold;">Total Factura:</td>
+                                <td style="padding:0.6rem;text-align:right;font-weight:bold;color:#0068c9;" id="totalEditFactura">L. 0.00</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <div style="background:#fff3cd;border-radius:8px;padding:0.75rem;margin-bottom:1rem;font-size:0.88rem;">
+                    ⚠️ Al guardar, el sistema <strong>revertirá</strong> la factura original y aplicará la nueva — recalculando costos promedio y recetas.
+                </div>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <button onclick="cerrarModalFactura()"
+                            style="background:#999;color:white;border:none;padding:0.6rem 1.2rem;border-radius:6px;cursor:pointer;">
+                        Cancelar
+                    </button>
+                    <button id="btnGuardarFactura" onclick="guardarEdicionFactura()"
+                            style="background:#0068c9;color:white;border:none;padding:0.6rem 1.5rem;border-radius:6px;cursor:pointer;font-weight:bold;">
+                        💾 Guardar Factura Completa
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR LÍNEA INDIVIDUAL (compatibilidad) -->
+    <div id="modalEditarCompra" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);
+         z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:14px;width:100%;max-width:520px;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.3);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#0068c9,#0050a0);padding:1.2rem 1.5rem;
+                        display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;color:white;font-size:1.05rem;">✏️ Modificar Registro</h3>
+                <button onclick="cerrarModalEditar()" style="background:rgba(255,255,255,0.2);border:none;
+                        color:white;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+            <div style="padding:1.5rem;">
+                <input type="hidden" id="editId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label><strong>Producto</strong></label>
+                        <input type="text" id="editProducto" readonly style="background:#f5f5f5;cursor:not-allowed;">
+                    </div>
+                    <div class="form-group">
+                        <label>Fecha</label>
+                        <input type="date" id="editFecha">
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Cantidad *</label>
+                        <input type="number" id="editCantidad" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Unidad</label>
+                        <select id="editUnidad">
+                            <option>Unidad</option><option>Libra</option><option>Kg</option>
+                            <option>Gramo</option><option>Litro</option><option>Ml</option>
+                            <option>Onza</option><option>Docena</option><option>Caja</option><option>Bolsa</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Costo Unitario (L.) *</label>
+                        <input type="number" id="editCosto" step="0.01" min="0.01" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Proveedor</label>
+                        <input type="text" id="editProveedor">
+                    </div>
+                </div>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;margin-top:1rem;">
+                    <button onclick="cerrarModalEditar()" style="background:#999;color:white;border:none;padding:0.6rem 1.2rem;border-radius:6px;cursor:pointer;">Cancelar</button>
+                    <button onclick="guardarEdicionCompra()" style="background:#0068c9;color:white;border:none;padding:0.6rem 1.5rem;border-radius:6px;cursor:pointer;font-weight:bold;">💾 Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ─── UTILIDADES ───────────────────────────────────────
+        function toggleDetalle(id) {
+            const el = document.getElementById(id);
+            if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+        }
+
+        function filtrarFacturas() {
+            const fi    = document.getElementById('fechaInicio')?.value || '';
+            const ff    = document.getElementById('fechaFinal')?.value  || '';
+            const prov  = (document.getElementById('filtroProveedor')?.value || '').toLowerCase().trim();
+            const fac   = (document.getElementById('buscarHistorial')?.value || '').toLowerCase().trim();
+            const prod  = (document.getElementById('filtroProductoHist')?.value || '').toLowerCase().trim();
+            const cards = document.querySelectorAll('.factura-card');
+            let vis = 0;
+            cards.forEach(c => {
+                const okFi  = !fi   || (c.dataset.fecha||'') >= fi;
+                const okFf  = !ff   || (c.dataset.fecha||'') <= ff;
+                const okPr  = !prov || (c.dataset.proveedor||'').includes(prov);
+                const okFac = !fac  || (c.dataset.factura||'').includes(fac);
+                const okProd= !prod || (c.dataset.productos||'').includes(prod);
+                const show  = okFi && okFf && okPr && okFac && okProd;
+                c.style.display = show ? '' : 'none';
+                if (show) vis++;
+            });
+            const cnt = document.getElementById('contadorFacturas');
+            if (cnt) cnt.textContent = vis;
+        }
+
+        function filtrarStock() {
+            const busqueda = document.getElementById('buscarStock').value.toLowerCase();
+            document.querySelectorAll('#tbodyStock tr').forEach(fila => {
+                fila.style.display = (!busqueda || fila.textContent.toLowerCase().includes(busqueda)) ? '' : 'none';
+            });
+        }
+
+        // ─── GESTIÓN DE FACTURA COMPLETA ─────────────────────
+        let inventarioGlobal = [];
+
+        async function cargarInventarioGlobal() {
+            try {
+                const r = await fetch('/api/inventario');
+                inventarioGlobal = await r.json();
+            } catch(e) { console.error(e); }
+        }
+
+        async function abrirEditarFactura(noFactura) {
+            try {
+                const r = await fetch(`/inventario/factura/${encodeURIComponent(noFactura)}`);
+                const factura = await r.json();
+
+                document.getElementById('facturaNoEdit').value       = factura.noFactura;
+                document.getElementById('facturaNombreEdit').value   = factura.noFactura;
+                document.getElementById('facturaFechaEdit').value    = factura.fechaFactura;
+                document.getElementById('facturaProveedorEdit').value= factura.proveedor || '';
+
+                const tbody = document.getElementById('tbodyEditFactura');
+                tbody.innerHTML = '';
+                factura.items.forEach(item => agregarFilaFactura(item));
+                recalcularTotalFactura();
+
+                document.getElementById('modalEditarFactura').style.display = 'flex';
+            } catch(e) {
+                showNotification('Error al cargar la factura', 'error');
+            }
+        }
+
+        function agregarFilaFactura(item = null) {
+            const tbody = document.getElementById('tbodyEditFactura');
+            const rid   = 'ef_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
+
+            const opts = inventarioGlobal.map(i =>
+                `<option value="${i.codigo}" data-nombre="${i.ingrediente}" data-unidad="${i.unidad}" ${item && item.codigo === i.codigo ? 'selected' : ''}>${i.ingrediente}</option>`
+            ).join('');
+
+            const tr = document.createElement('tr');
+            tr.id = rid;
+            tr.style.borderBottom = '1px solid #eee';
+            tr.innerHTML = `
+                <td style="padding:0.4rem;">
+                    <select class="ef-select" onchange="actualizarFilaFactura('${rid}')"
+                            style="width:100%;padding:0.4rem;border:1px solid #ddd;border-radius:5px;">
+                        <option value="">Seleccionar...</option>${opts}
+                    </select>
+                </td>
+                <td style="padding:0.4rem;">
+                    <input type="number" class="ef-cant" step="0.01" min="0.01"
+                           value="${item ? item.cantidad : ''}"
+                           oninput="recalcularTotalFactura()"
+                           style="width:90px;padding:0.4rem;border:1px solid #ddd;border-radius:5px;">
+                </td>
+                <td class="ef-unidad" style="padding:0.4rem;font-size:0.85rem;color:#555;">${item ? (item.unidad||'') : ''}</td>
+                <td style="padding:0.4rem;">
+                    <input type="number" class="ef-costo" step="0.01" min="0.01"
+                           value="${item ? item.costoUnitario : ''}"
+                           oninput="recalcularTotalFactura()"
+                           style="width:100px;padding:0.4rem;border:1px solid #ddd;border-radius:5px;">
+                </td>
+                <td class="ef-subtotal" style="padding:0.4rem;text-align:right;font-weight:bold;color:#21c354;">L. 0.00</td>
+                <td style="padding:0.4rem;text-align:center;">
+                    <button onclick="document.getElementById('${rid}').remove();recalcularTotalFactura();"
+                            style="background:#ff4b4b;color:white;border:none;border-radius:5px;padding:0.2rem 0.5rem;cursor:pointer;">🗑️</button>
+                </td>`;
+            tbody.appendChild(tr);
+            if (item) recalcularTotalFactura();
+        }
+
+        function actualizarFilaFactura(rid) {
+            const tr  = document.getElementById(rid);
+            const sel = tr.querySelector('.ef-select');
+            const opt = sel.options[sel.selectedIndex];
+            tr.querySelector('.ef-unidad').textContent = opt?.dataset.unidad || '';
+            recalcularTotalFactura();
+        }
+
+        function recalcularTotalFactura() {
+            let total = 0;
+            document.querySelectorAll('#tbodyEditFactura tr').forEach(tr => {
+                const cant  = parseFloat(tr.querySelector('.ef-cant')?.value) || 0;
+                const costo = parseFloat(tr.querySelector('.ef-costo')?.value) || 0;
+                const sub   = cant * costo;
+                const tdSub = tr.querySelector('.ef-subtotal');
+                if (tdSub) tdSub.textContent = 'L. ' + sub.toFixed(2);
+                total += sub;
+            });
+            const totEl = document.getElementById('totalEditFactura');
+            if (totEl) totEl.textContent = 'L. ' + total.toFixed(2);
+        }
+
+        async function guardarEdicionFactura() {
+            const noFactura = document.getElementById('facturaNoEdit').value;
+            const fecha     = document.getElementById('facturaFechaEdit').value;
+            const proveedor = document.getElementById('facturaProveedorEdit').value.trim();
+            const btn       = document.getElementById('btnGuardarFactura');
+
+            if (!fecha) { showNotification('La fecha es obligatoria', 'error'); return; }
+
+            const productos = [];
+            let hayError = false;
+
+            document.querySelectorAll('#tbodyEditFactura tr').forEach(tr => {
+                const sel    = tr.querySelector('.ef-select');
+                const cant   = parseFloat(tr.querySelector('.ef-cant')?.value);
+                const costo  = parseFloat(tr.querySelector('.ef-costo')?.value);
+                const opt    = sel?.options[sel.selectedIndex];
+
+                if (!opt?.value) return;
+                if (!cant || cant <= 0) { showNotification('Cantidad inválida en algún producto', 'error'); hayError = true; return; }
+                if (!costo || costo <= 0) { showNotification('Costo inválido en algún producto', 'error'); hayError = true; return; }
+
+                productos.push({ codigo: opt.value, nombre: opt.dataset.nombre, unidad: tr.querySelector('.ef-unidad')?.textContent || '', cantidad: cant, costoUnitario: costo });
+            });
+
+            if (hayError) return;
+            if (productos.length === 0) { showNotification('La factura debe tener al menos un producto', 'error'); return; }
+
+            if (!confirm(`¿Confirmar edición de factura ${noFactura}?\n\nEsto revertirá la factura original y aplicará los cambios.\nSe recalcularán inventario y costos de recetas.`)) return;
+
+            btn.disabled = true; btn.textContent = '⏳ Guardando...';
+
+            try {
+                const resp = await fetch(`/inventario/factura/${encodeURIComponent(noFactura)}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ fecha, proveedor, productos })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showNotification('✅ Factura actualizada. Inventario y costos recalculados.', 'success');
+                    cerrarModalFactura();
+                    setTimeout(() => location.reload(), 1800);
+                } else {
+                    showNotification(data.error || 'Error al actualizar', 'error');
+                    btn.disabled = false; btn.textContent = '💾 Guardar Factura Completa';
+                }
+            } catch(e) { showNotification('Error de conexión', 'error'); btn.disabled = false; btn.textContent = '💾 Guardar Factura Completa'; }
+        }
+
+        async function eliminarFactura(noFactura) {
+            if (!confirm(`¿Eliminar la factura ${noFactura}?\n\n⚠️ ESTA ACCIÓN:\n• Revertirá el inventario\n• Eliminará las entradas del Kardex\n• Recalculará costos de recetas\n\nEsta acción NO puede deshacerse.`)) return;
+            try {
+                const resp = await fetch(`/inventario/factura/${encodeURIComponent(noFactura)}`, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    showNotification(`✅ Factura ${noFactura} eliminada. Inventario recalculado.`, 'success');
+                    setTimeout(() => location.reload(), 1800);
+                } else {
+                    showNotification(data.error || 'Error al eliminar', 'error');
+                }
+            } catch(e) { showNotification('Error de conexión', 'error'); }
+        }
+
+        function cerrarModalFactura() {
+            document.getElementById('modalEditarFactura').style.display = 'none';
+        }
+
+        // ─── MODAL EDITAR LÍNEA (compatibilidad) ─────────────
+        function abrirModalEditar(id, factura, producto, cantidad, costo, unidad, proveedor, fecha) {
+            document.getElementById('editId').value        = id;
+            document.getElementById('editProducto').value  = producto;
+            document.getElementById('editCantidad').value  = cantidad;
+            document.getElementById('editCosto').value     = costo;
+            document.getElementById('editProveedor').value = proveedor;
+            document.getElementById('editFecha').value     = fecha;
+            const sel = document.getElementById('editUnidad');
+            for (let o of sel.options) { if (o.value === unidad) { o.selected = true; break; } }
+            document.getElementById('modalEditarCompra').style.display = 'flex';
+        }
+
+        function cerrarModalEditar() { document.getElementById('modalEditarCompra').style.display = 'none'; }
+
+        async function guardarEdicionCompra() {
+            const id       = document.getElementById('editId').value;
+            const cantidad = parseFloat(document.getElementById('editCantidad').value);
+            const costo    = parseFloat(document.getElementById('editCosto').value);
+            const unidad   = document.getElementById('editUnidad').value;
+            const proveedor= document.getElementById('editProveedor').value;
+            const fecha    = document.getElementById('editFecha').value;
+            if (!cantidad || cantidad <= 0 || !costo || costo <= 0) {
+                showNotification('Cantidad y Costo son obligatorios', 'error'); return;
+            }
+            try {
+                const resp = await fetch(`/inventario/compra/${id}`, {
+                    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ cantidad, costoUnitario: costo, unidad, proveedor, fechaFactura: fecha })
+                });
+                const data = await resp.json();
+                if (data.success) { showNotification('Actualizado', 'success'); cerrarModalEditar(); setTimeout(() => location.reload(), 1500); }
+                else showNotification(data.error || 'Error', 'error');
+            } catch(e) { showNotification('Error de conexión', 'error'); }
+        }
+
+        // ─── DELEGACIÓN DE EVENTOS ────────────────────────────
+        document.addEventListener('DOMContentLoaded', function() {
+            cargarInventarioGlobal();
+
+            document.addEventListener('click', function(e) {
+                const btnEdit = e.target.closest('.btn-editar-factura');
+                const btnElim = e.target.closest('.btn-eliminar-factura');
+                if (btnEdit) abrirEditarFactura(btnEdit.dataset.factura);
+                if (btnElim) eliminarFactura(btnElim.dataset.factura);
+            });
+
+            document.getElementById('modalEditarFactura').addEventListener('click', function(e) {
+                if (e.target === this) cerrarModalFactura();
+            });
+            document.getElementById('modalEditarCompra').addEventListener('click', function(e) {
+                if (e.target === this) cerrarModalEditar();
+            });
+        });
+    </script>
+</body>
+</html>

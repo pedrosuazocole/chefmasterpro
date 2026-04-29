@@ -1,0 +1,903 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Recetas - Chef Master Pro</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>🍽️ Gestión de Recetas</h1>
+            <p class="subtitle">Creá recetas y calculá costos automáticamente</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('crear')">Crear Receta</button>
+            <button class="tab-btn" onclick="switchTab('lista')">Ver Recetas</button>
+        </div>
+        
+        <div id="tab-crear" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Nueva Receta</h3>
+                </div>
+                <div class="card-body">
+                    <form id="formReceta" onsubmit="crearReceta(event)">
+                        <div class="form-group">
+                            <label>Nombre del Plato</label>
+                            <input type="text" id="nombrePlato" required placeholder="Ej: SAMBOS RELLENOS">
+                        </div>
+                        
+                        <h4 style="margin:1.5rem 0 1rem;">Ingredientes</h4>
+                        
+                        <!-- TABLA DE INGREDIENTES -->
+                        <div style="overflow-x:auto;margin-bottom:0.75rem;">
+                            <table style="width:100%;border-collapse:collapse;font-size:0.92rem;" id="tablaIngredientes">
+                                <thead>
+                                    <tr style="background:#f0f4ff;">
+                                        <th style="padding:0.6rem 0.75rem;text-align:left;border-bottom:2px solid #ddd;width:35%;">Ingrediente</th>
+                                        <th style="padding:0.6rem 0.75rem;text-align:left;border-bottom:2px solid #ddd;width:12%;">Unidad</th>
+                                        <th style="padding:0.6rem 0.75rem;text-align:left;border-bottom:2px solid #ddd;width:13%;">Cantidad</th>
+                                        <th style="padding:0.6rem 0.75rem;text-align:right;border-bottom:2px solid #ddd;width:16%;">Costo Promedio</th>
+                                        <th style="padding:0.6rem 0.75rem;text-align:right;border-bottom:2px solid #ddd;width:16%;">Total Línea</th>
+                                        <th style="padding:0.6rem 0.75rem;border-bottom:2px solid #ddd;width:8%;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="ingredientesReceta"></tbody>
+                                <tfoot>
+                                    <tr style="background:#f9f9f9;border-top:2px solid #ddd;">
+                                        <td colspan="4" style="padding:0.75rem;text-align:right;font-weight:bold;">Costo Total:</td>
+                                        <td style="padding:0.75rem;text-align:right;font-weight:bold;color:#0068c9;font-size:1.05rem;" id="totalFinalTabla">L. 0.00</td>
+                                        <td></td>
+                                    </tr>
+                                </tfoot>
+                            </table>
+                        </div>
+                        <button type="button" class="btn btn-sm" onclick="agregarIngrediente()" style="margin-bottom:0.5rem;">
+                            ➕ Agregar Ingrediente
+                        </button>
+                        
+                        <hr style="margin: 2rem 0;">
+                        
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Precio de Venta Deseado (L.)</label>
+                                <input type="number" id="precioVenta" step="0.01" required placeholder="0.00">
+                            </div>
+                            <div class="form-group">
+                                <label>Margen Objetivo (%)</label>
+                                <input type="number" id="margenObjetivo" step="0.01" value="70" placeholder="70">
+                            </div>
+                        </div>
+                        
+                        <div style="background: var(--light); padding: 1.5rem; border-radius: 8px; margin: 1rem 0;">
+                            <h3>Resumen de Costos</h3>
+                            <p>Costo Total del Plato: <strong id="costoTotalPlato">L. 0.00</strong></p>
+                            <p>Precio de Venta: <strong id="precioVentaDisplay">L. 0.00</strong></p>
+                            <p>Utilidad: <strong id="utilidadDisplay">L. 0.00</strong></p>
+                            <p>Margen: <strong id="margenDisplay">0%</strong></p>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary btn-block">💾 Guardar Receta</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <div id="tab-lista" class="tab-content">
+            <div class="card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <h3>Recetas Guardadas</h3>
+                    <div>
+                        <button class="btn btn-sm" onclick="window.print()" 
+                                style="background:#555;color:white;margin-right:0.5rem;">
+                            🖨️ Imprimir
+                        </button>
+                        <button class="btn btn-sm" onclick="exportarExcel('recetas', 'recetas')" 
+                                style="background: #21c354; color: white; margin-right: 0.5rem;">
+                            📊 Excel
+                        </button>
+                        <button class="btn btn-sm" onclick="exportarPDF('recetas', 'recetas')" 
+                                style="background: #ff4b4b; color: white;">
+                            📄 PDF
+                        </button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <% if (recetas && recetas.length > 0) { %>
+                        <% recetas.forEach(r => { 
+                            const margenActual  = parseFloat(r.alerta.margenActual);
+                            const margenObjetivo= r.alerta.margenObjetivo;
+                            const esBajo        = margenActual < margenObjetivo;
+                            const colorFondo    = esBajo ? '#ffe6e6' : '#e6ffe6';
+                            const colorMargen   = esBajo ? '#ff4b4b' : '#21c354';
+                        %>
+                        <!-- TARJETA POR RECETA -->
+                        <div style="border:1px solid #e0e0e0;border-radius:10px;margin-bottom:1.5rem;overflow:hidden;"
+                             data-receta-id="<%= r.id %>"
+                             data-plato="<%= r.plato %>"
+                             data-precio="<%= r.precioVenta %>"
+                             data-margen="<%= r.alerta.margenObjetivo %>">
+                            <!-- Encabezado receta -->
+                            <div style="background:<%= colorFondo %>;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;">
+                                <div>
+                                    <h4 style="margin:0;font-size:1.1rem;"><%= r.plato %></h4>
+                                    <% if (r.alerta.hayCambios) { %>
+                                        <span style="color:#ff9800;font-size:0.85rem;">⚠️ Precios de insumos actualizados</span>
+                                    <% } %>
+                                </div>
+                                <div style="display:flex;flex-wrap:wrap;gap:0.4rem;align-items:center;">
+                                    <span style="background:<%= colorMargen %>;color:white;padding:0.25rem 0.7rem;border-radius:12px;font-size:0.85rem;font-weight:bold;">
+                                        <%= esBajo ? '⚠️ BAJO OBJETIVO' : '✅ MARGEN OK' %> — <%= margenActual.toFixed(1) %>%
+                                    </span>
+                                    <% if (r.alerta.hayCambios) { %>
+                                        <button class="btn btn-sm" onclick="actualizarCostosReceta('<%= r.plato %>')"
+                                                style="background:#ff9800;color:white;">🔄 Actualizar Costos</button>
+                                    <% } %>
+                                    <% if (esBajo) { %>
+                                        <button class="btn btn-sm" onclick="sugerirPrecio('<%= r.plato %>', <%= r.alerta.precioSugerido %>)"
+                                                style="background:#0068c9;color:white;">💡 L. <%= r.alerta.precioSugerido %></button>
+                                    <% } %>
+                                    <button class="btn btn-sm" onclick="verHistorialPrecios('<%= r.plato %>')"
+                                            style="background:#764ba2;color:white;">📈 Historial</button>
+                                    <button class="btn btn-sm" onclick="abrirEditarReceta('<%= r.id %>')"
+                                            style="background:#0068c9;color:white;">✏️ Editar</button>
+                                    <button class="btn btn-sm" onclick="eliminarReceta('<%= r.id %>', '<%= r.plato %>')"
+                                            style="background:#ff4b4b;color:white;">🗑️ Eliminar</button>
+                                </div>
+                            </div>
+                            <!-- Resumen costos -->
+                            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:0;border-bottom:1px solid #e0e0e0;">
+                                <div style="padding:0.75rem 1rem;border-right:1px solid #e0e0e0;">
+                                    <div style="font-size:0.8rem;color:#666;">Costo Promedio</div>
+                                    <div style="font-weight:bold;">
+                                        <% if (r.alerta.hayCambios) { %>
+                                            <span style="text-decoration:line-through;color:#999;font-size:0.85rem;">L. <%= parseFloat(r.alerta.costoAnterior).toFixed(2) %></span><br>
+                                        <% } %>
+                                        L. <%= parseFloat(r.alerta.costoActual).toFixed(2) %>
+                                    </div>
+                                </div>
+                                <div style="padding:0.75rem 1rem;border-right:1px solid #e0e0e0;">
+                                    <div style="font-size:0.8rem;color:#666;">Precio Venta</div>
+                                    <div style="font-weight:bold;">L. <%= r.precioVenta.toFixed(2) %></div>
+                                </div>
+                                <div style="padding:0.75rem 1rem;border-right:1px solid #e0e0e0;">
+                                    <div style="font-size:0.8rem;color:#666;">Utilidad</div>
+                                    <div style="font-weight:bold;color:#21c354;">L. <%= r.alerta.utilidadActual %></div>
+                                </div>
+                                <div style="padding:0.75rem 1rem;">
+                                    <div style="font-size:0.8rem;color:#666;">Margen / Objetivo</div>
+                                    <div style="font-weight:bold;color:<%= colorMargen %>;"><%= margenActual.toFixed(1) %>% / <%= margenObjetivo %>%</div>
+                                </div>
+                            </div>
+                            <!-- TABLA DETALLADA DE INGREDIENTES -->
+                            <div style="overflow-x:auto;">
+                                <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                                    <thead>
+                                        <tr style="background:#f8f9fa;">
+                                            <th style="padding:0.6rem 1rem;text-align:left;border-bottom:2px solid #dee2e6;">Código</th>
+                                            <th style="padding:0.6rem 1rem;text-align:left;border-bottom:2px solid #dee2e6;">Ingrediente</th>
+                                            <th style="padding:0.6rem 1rem;text-align:left;border-bottom:2px solid #dee2e6;">Unidad</th>
+                                            <th style="padding:0.6rem 1rem;text-align:right;border-bottom:2px solid #dee2e6;">Cantidad</th>
+                                            <th style="padding:0.6rem 1rem;text-align:right;border-bottom:2px solid #dee2e6;background:#fffbf0;">Costo Promedio (L.)</th>
+                                            <th style="padding:0.6rem 1rem;text-align:right;border-bottom:2px solid #dee2e6;">Total Línea (L.)</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% r.detalleExpandido.forEach((ing, idx) => { %>
+                                        <tr class="fila-ing-detalle"
+                                            data-codigo="<%= ing.Codigo %>"
+                                            data-cantidad="<%= ing.Cantidad %>"
+                                            style="background:<%= idx % 2 === 0 ? 'white' : '#fafafa' %>;">
+                                            <td style="padding:0.55rem 1rem;border-bottom:1px solid #f0f0f0;">
+                                                <code style="background:#f0f4ff;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.82rem;"><%= ing.Codigo %></code>
+                                            </td>
+                                            <td style="padding:0.55rem 1rem;border-bottom:1px solid #f0f0f0;"><strong><%= ing.Nombre %></strong></td>
+                                            <td style="padding:0.55rem 1rem;border-bottom:1px solid #f0f0f0;color:#666;"><%= ing.Unidad %></td>
+                                            <td style="padding:0.55rem 1rem;border-bottom:1px solid #f0f0f0;text-align:right;"><%= parseFloat(ing.Cantidad).toFixed(2) %></td>
+                                            <td style="padding:0.55rem 1rem;border-bottom:1px solid #f0f0f0;text-align:right;background:#fffbf0;font-weight:bold;color:#856404;">
+                                                <%= parseFloat(ing.costoPromedio).toFixed(4) %>
+                                            </td>
+                                            <td style="padding:0.55rem 1rem;border-bottom:1px solid #f0f0f0;text-align:right;font-weight:bold;">
+                                                <%= parseFloat(ing.totalLinea).toFixed(2) %>
+                                            </td>
+                                        </tr>
+                                        <% }); %>
+                                    </tbody>
+                                    <tfoot>
+                                        <tr style="background:#f0f4ff;font-weight:bold;">
+                                            <td colspan="5" style="padding:0.65rem 1rem;text-align:right;">COSTO TOTAL DEL PLATO:</td>
+                                            <td style="padding:0.65rem 1rem;text-align:right;font-size:1.05rem;">
+                                                L. <%= parseFloat(r.alerta.costoActual).toFixed(2) %>
+                                            </td>
+                                        </tr>
+                                    </tfoot>
+                                </table>
+                            </div>
+                        </div>
+                        <% }); %>
+                    <% } else { %>
+                        <p class="text-center text-muted">No hay recetas creadas aún</p>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+    
+    <script src="/js/main.js"></script>
+    <script src="/js/exportar.js"></script>
+    <script>
+        let inventarioDisponible = [];
+        
+        async function cargarInventario() {
+            const response = await fetch('/api/inventario');
+            inventarioDisponible = await response.json();
+            agregarIngrediente();
+        }
+        
+        function agregarIngrediente() {
+            const tbody = document.getElementById('ingredientesReceta');
+            const rowId = 'ing_' + Date.now();
+            const options = inventarioDisponible.map(i =>
+                `<option value="${i.codigo}" data-costo="${i.costoUnitario}" data-nombre="${i.ingrediente}" data-unidad="${i.unidad}">
+                    ${i.ingrediente}
+                </option>`
+            ).join('');
+
+            const row = document.createElement('tr');
+            row.id = rowId;
+            row.className = 'ingrediente-item';
+            row.style.borderBottom = '1px solid #eee';
+            row.innerHTML = `
+                <td style="padding:0.5rem 0.75rem;">
+                    <select class="ing-select" required onchange="actualizarCostos()" style="width:100%;padding:0.45rem;border:1px solid #ddd;border-radius:6px;">
+                        <option value="">Seleccionar...</option>
+                        ${options}
+                    </select>
+                </td>
+                <td style="padding:0.5rem 0.4rem;" class="ing-unidad" style="color:#555;"></td>
+                <td style="padding:0.5rem 0.4rem;">
+                    <input type="number" class="ing-cantidad" step="0.01" min="0.01" placeholder="0" required
+                           oninput="actualizarCostos()"
+                           style="width:90%;padding:0.45rem;border:1px solid #ddd;border-radius:6px;">
+                </td>
+                <td class="ing-costo-promedio" style="padding:0.5rem 0.75rem;text-align:right;color:#0068c9;font-weight:bold;">L. 0.00</td>
+                <td class="ing-total-linea"    style="padding:0.5rem 0.75rem;text-align:right;font-weight:bold;color:#21c354;">L. 0.00</td>
+                <td style="padding:0.5rem 0.4rem;text-align:center;">
+                    <button type="button" onclick="eliminarIngrediente('${rowId}')"
+                            style="background:#ff4b4b;color:white;border:none;border-radius:6px;padding:0.3rem 0.6rem;cursor:pointer;">🗑️</button>
+                </td>`;
+            tbody.appendChild(row);
+        }
+
+        function eliminarIngrediente(rowId) {
+            const row = document.getElementById(rowId);
+            if (row) { row.remove(); actualizarCostos(); }
+        }
+        
+        function actualizarCostos() {
+            let costoTotal = 0;
+            document.querySelectorAll('.ingrediente-item').forEach(row => {
+                const select   = row.querySelector('.ing-select');
+                const cantInput= row.querySelector('.ing-cantidad');
+                const opt      = select.options[select.selectedIndex];
+                const costo    = parseFloat(opt?.dataset.costo || 0);
+                const unidad   = opt?.dataset.unidad || '';
+                const cantidad = parseFloat(cantInput?.value) || 0;
+                const total    = cantidad * costo;
+
+                // Actualizar unidad en la celda
+                const tdUnidad = row.querySelector('.ing-unidad');
+                if (tdUnidad) tdUnidad.textContent = unidad;
+
+                // Actualizar costo promedio y total línea
+                row.querySelector('.ing-costo-promedio').textContent = 'L. ' + costo.toFixed(2);
+                row.querySelector('.ing-total-linea').textContent    = 'L. ' + total.toFixed(2);
+                costoTotal += total;
+            });
+            
+            // Actualizar total final en tfoot
+            const totalFinal = document.getElementById('totalFinalTabla');
+            if (totalFinal) totalFinal.textContent = 'L. ' + costoTotal.toFixed(2);
+
+            const precioVenta = parseFloat(document.getElementById('precioVenta').value) || 0;
+            const utilidad = precioVenta - costoTotal;
+            const margen   = precioVenta > 0 ? (utilidad / precioVenta) * 100 : 0;
+            
+            document.getElementById('costoTotalPlato').textContent    = 'L. ' + costoTotal.toFixed(2);
+            document.getElementById('precioVentaDisplay').textContent = 'L. ' + precioVenta.toFixed(2);
+            document.getElementById('utilidadDisplay').textContent    = 'L. ' + utilidad.toFixed(2);
+            document.getElementById('margenDisplay').textContent      = margen.toFixed(1) + '%';
+        }
+        
+        async function crearReceta(event) {
+            event.preventDefault();
+            
+            const plato = document.getElementById('nombrePlato').value;
+            const precioVenta = document.getElementById('precioVenta').value;
+            const margenObjetivo = document.getElementById('margenObjetivo').value;
+            
+            const ingredientes = [];
+            document.querySelectorAll('.ingrediente-item').forEach(item => {
+                const select = item.querySelector('.ing-select');
+                const opt = select.options[select.selectedIndex];
+                if (opt.value) {
+                    ingredientes.push({
+                        codigo: opt.value,
+                        nombre: opt.dataset.nombre,
+                        cantidad: item.querySelector('.ing-cantidad').value,
+                        costoUnitario: opt.dataset.costo
+                    });
+                }
+            });
+            
+            if (ingredientes.length === 0) {
+                alert('Debés agregar al menos un ingrediente');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/recetas/crear', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plato, ingredientes, precioVenta, margenObjetivo })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Receta creada exitosamente', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                }
+            } catch (error) {
+                showNotification('Error al crear receta', 'error');
+            }
+        }
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            cargarInventario();
+            document.getElementById('precioVenta').addEventListener('input', actualizarCostos);
+        });
+        
+        // NUEVAS FUNCIONES PARA RECETAS INTELIGENTES
+        async function actualizarCostosReceta(plato) {
+            if (!confirm(`¿Actualizar costos de "${plato}" con precios actuales del inventario?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/recetas/actualizar-costos/${encodeURIComponent(plato)}`, {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Costos actualizados. Nuevo costo: L. ${parseFloat(data.costoNuevo).toFixed(2)} - Margen: ${data.margenNuevo}%`, 'success');
+                    setTimeout(() => location.reload(), 2000);
+                } else {
+                    showNotification('Error al actualizar costos', 'error');
+                }
+            } catch (error) {
+                showNotification('Error de conexión', 'error');
+            }
+        }
+        
+        function sugerirPrecio(plato, precioSugerido) {
+            const mensaje = `Para "${plato}":\n\nPrecio Actual: Se mostrará en la tabla\nPrecio Sugerido: L. ${precioSugerido}\n\nEste precio mantendría el margen objetivo.`;
+            alert(mensaje);
+        }
+        
+        async function eliminarReceta(id, plato) {
+            if (!confirm(`¿Está seguro de eliminar la receta "${plato}"?\n\n⚠️ Esta acción NO puede deshacerse.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/recetas/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Receta eliminada exitosamente', 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showNotification(data.error || 'Error al eliminar', 'error');
+                }
+            } catch (error) {
+                showNotification('Error de conexión', 'error');
+            }
+        }
+        
+        async function editarPrecioVenta(id, plato, precioActual) {
+            const nuevoPrecio = prompt(`Editar precio de venta para "${plato}"\n\nPrecio actual: L. ${precioActual.toFixed(2)}\n\nIngrese el nuevo precio:`, precioActual.toFixed(2));
+            if (nuevoPrecio === null || nuevoPrecio === '') return;
+            const precio = parseFloat(nuevoPrecio);
+            if (isNaN(precio) || precio <= 0) { alert('Por favor ingrese un precio válido'); return; }
+            try {
+                const response = await fetch(`/recetas/${id}/precio`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ precioVenta: precio })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(`Precio actualizado a L. ${precio.toFixed(2)}`, 'success');
+                    setTimeout(() => location.reload(), 1500);
+                } else {
+                    showNotification(data.error || 'Error al actualizar', 'error');
+                }
+            } catch (error) { showNotification('Error de conexión', 'error'); }
+        }
+
+        // ============================================================
+        // HISTORIAL DE PRECIOS CON GRÁFICO
+        // ============================================================
+        let chartInstance = null;
+
+        async function verHistorialPrecios(plato) {
+            // Mostrar modal
+            document.getElementById('modalHistorial').style.display = 'flex';
+            document.getElementById('modalTitulo').textContent = `📈 Historial de Precios — ${plato}`;
+            document.getElementById('modalCargando').style.display = 'block';
+            document.getElementById('modalContenido').style.display = 'none';
+            document.getElementById('sinHistorial').style.display = 'none';
+
+            try {
+                const res = await fetch(`/api/historial-precios/${encodeURIComponent(plato)}`);
+                const datos = await res.json();
+
+                document.getElementById('modalCargando').style.display = 'none';
+
+                if (!datos || datos.length === 0) {
+                    document.getElementById('sinHistorial').style.display = 'block';
+                    return;
+                }
+
+                document.getElementById('modalContenido').style.display = 'block';
+
+                // --- TABLA ---
+                const tbody = document.getElementById('tbodyHistorialPrecios');
+                tbody.innerHTML = '';
+                datos.slice().reverse().forEach(h => {
+                    const fecha   = new Date(h.fecha).toLocaleString('es-HN');
+                    const tipo    = h.tipo === 'CAMBIO_PRECIO_VENTA' ? '💲 Precio Venta' : '📦 Costo';
+                    const costoAntes = `L. ${parseFloat(h.costoAnterior||0).toFixed(2)}`;
+                    const costoAhora = `L. ${parseFloat(h.costoNuevo||0).toFixed(2)}`;
+                    const pvAntes = h.precioVentaAnterior != null ? `L. ${parseFloat(h.precioVentaAnterior).toFixed(2)}` : '—';
+                    const pvAhora = `L. ${parseFloat(h.precioVenta||0).toFixed(2)}`;
+                    const margen  = `${parseFloat(h.margenNuevo||0).toFixed(1)}%`;
+                    const esBajo  = parseFloat(h.margenNuevo||0) < 70;
+                    tbody.innerHTML += `
+                        <tr>
+                            <td style="font-size:0.85rem;">${fecha}</td>
+                            <td><span style="background:#f0f4ff;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.82rem;">${tipo}</span></td>
+                            <td>${costoAntes} → <strong>${costoAhora}</strong></td>
+                            <td>${pvAntes} → <strong>${pvAhora}</strong></td>
+                            <td style="font-weight:bold;color:${esBajo?'#ff4b4b':'#21c354'};">
+                                ${margen} ${esBajo?'⚠️':'✅'}
+                            </td>
+                        </tr>`;
+                });
+
+                // --- GRÁFICO ---
+                const labels  = datos.map(h => new Date(h.fecha).toLocaleDateString('es-HN'));
+                const costos  = datos.map(h => parseFloat(h.costoNuevo||0).toFixed(2));
+                const precios = datos.map(h => parseFloat(h.precioVenta||0).toFixed(2));
+                const margenes= datos.map(h => parseFloat(h.margenNuevo||0).toFixed(1));
+
+                if (chartInstance) chartInstance.destroy();
+                const ctx = document.getElementById('graficoPreciosCanvas').getContext('2d');
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels,
+                        datasets: [
+                            {
+                                label: 'Costo (L.)',
+                                data: costos,
+                                borderColor: '#ff4b4b',
+                                backgroundColor: 'rgba(255,75,75,0.1)',
+                                tension: 0.3,
+                                pointRadius: 5,
+                                pointHoverRadius: 7
+                            },
+                            {
+                                label: 'Precio Venta (L.)',
+                                data: precios,
+                                borderColor: '#21c354',
+                                backgroundColor: 'rgba(33,195,84,0.1)',
+                                tension: 0.3,
+                                pointRadius: 5,
+                                pointHoverRadius: 7
+                            },
+                            {
+                                label: 'Margen (%)',
+                                data: margenes,
+                                borderColor: '#764ba2',
+                                backgroundColor: 'rgba(118,75,162,0.1)',
+                                tension: 0.3,
+                                pointRadius: 5,
+                                pointHoverRadius: 7,
+                                yAxisID: 'y2'
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        interaction: { mode: 'index', intersect: false },
+                        plugins: {
+                            legend: { position: 'top' },
+                            title: {
+                                display: true,
+                                text: `Comportamiento de precios — ${plato}`,
+                                font: { size: 14, weight: 'bold' }
+                            },
+                            tooltip: {
+                                callbacks: {
+                                    label: ctx => {
+                                        const label = ctx.dataset.label;
+                                        const val   = ctx.parsed.y;
+                                        return label.includes('%') ? ` ${label}: ${val}%` : ` ${label}: L. ${val}`;
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            y:  { title: { display: true, text: 'Lempiras (L.)' }, beginAtZero: false },
+                            y2: { position: 'right', title: { display: true, text: 'Margen (%)' }, beginAtZero: false,
+                                  grid: { drawOnChartArea: false } }
+                        }
+                    }
+                });
+
+            } catch (e) {
+                console.error(e);
+                document.getElementById('modalCargando').textContent = 'Error al cargar datos.';
+            }
+        }
+
+        function cerrarModal() {
+            document.getElementById('modalHistorial').style.display = 'none';
+            if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+        }
+
+        // Cerrar modal con click afuera
+        document.getElementById('modalHistorial').addEventListener('click', function(e) {
+            if (e.target === this) cerrarModal();
+        });
+
+        // ============================================================
+        // EDITAR RECETA COMPLETA
+        // ============================================================
+        // EDICIÓN DIRECTA DE RECETA CON INGREDIENTES
+        // ============================================================
+        let inventarioParaEditar = [];
+
+        async function abrirEditarReceta(id) {
+            // Cargar inventario si no está disponible
+            if (inventarioParaEditar.length === 0) {
+                try {
+                    const r = await fetch('/api/inventario');
+                    inventarioParaEditar = await r.json();
+                } catch(e) { showNotification('Error cargando inventario', 'error'); return; }
+            }
+
+            // Cargar receta desde el DOM
+            const tarjeta = document.querySelector(`[data-receta-id="${id}"]`);
+            if (!tarjeta) { showNotification('Receta no encontrada', 'error'); return; }
+
+            document.getElementById('editRecetaId').value    = id;
+            document.getElementById('editRecetaPlato').value = tarjeta.dataset.plato || '';
+            document.getElementById('editRecetaPrecio').value= parseFloat(tarjeta.dataset.precio || 0).toFixed(2);
+            document.getElementById('editRecetaMargen').value= parseFloat(tarjeta.dataset.margen || 70);
+
+            // Cargar ingredientes actuales desde la tabla de detalleExpandido
+            const tbodyEdit = document.getElementById('tbodyIngEdit');
+            tbodyEdit.innerHTML = '';
+
+            // Buscar filas de ingredientes de esta tarjeta
+            const filaIng = tarjeta.querySelectorAll('.fila-ing-detalle');
+            filaIng.forEach(fila => {
+                const codigo   = fila.dataset.codigo   || '';
+                const cantidad = fila.dataset.cantidad || '';
+                agregarFilaIngEdit({ codigo, cantidad });
+            });
+
+            // Si no hay filas en el DOM, agregar una vacía
+            if (tbodyEdit.children.length === 0) agregarFilaIngEdit();
+
+            recalcularEditReceta();
+            document.getElementById('modalEditarReceta').style.display = 'flex';
+        }
+
+        function agregarFilaIngEdit(item = null) {
+            const tbody = document.getElementById('tbodyIngEdit');
+            const rid   = 'er_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
+
+            const opts = inventarioParaEditar.map(i =>
+                `<option value="${i.codigo}" data-costo="${i.costoUnitario}" data-nombre="${i.ingrediente}" data-unidad="${i.unidad}"
+                         ${item && item.codigo === i.codigo ? 'selected' : ''}>${i.ingrediente}</option>`
+            ).join('');
+
+            const tr = document.createElement('tr');
+            tr.id = rid;
+            tr.style.borderBottom = '1px solid #f0f0f0';
+            tr.innerHTML = `
+                <td style="padding:0.4rem;">
+                    <select class="er-select" onchange="actualizarFilaIng('${rid}')"
+                            style="width:100%;padding:0.4rem;border:1px solid #ddd;border-radius:5px;font-size:0.88rem;">
+                        <option value="">Seleccionar...</option>${opts}
+                    </select>
+                </td>
+                <td class="er-unidad" style="padding:0.4rem;font-size:0.82rem;color:#555;"></td>
+                <td style="padding:0.4rem;">
+                    <input type="number" class="er-cant" step="0.01" min="0.01" placeholder="0"
+                           value="${item ? item.cantidad : ''}"
+                           oninput="recalcularEditReceta()"
+                           style="width:85px;padding:0.4rem;border:1px solid #ddd;border-radius:5px;font-size:0.88rem;">
+                </td>
+                <td class="er-costo" style="padding:0.4rem;text-align:right;font-size:0.85rem;color:#0068c9;font-weight:bold;">L. 0.00</td>
+                <td class="er-total" style="padding:0.4rem;text-align:right;font-weight:bold;color:#21c354;">L. 0.00</td>
+                <td style="padding:0.4rem;text-align:center;">
+                    <button onclick="document.getElementById('${rid}').remove();recalcularEditReceta();"
+                            style="background:#ff4b4b;color:white;border:none;border-radius:5px;padding:0.2rem 0.5rem;cursor:pointer;font-size:0.82rem;">🗑️</button>
+                </td>`;
+            tbody.appendChild(tr);
+            if (item) actualizarFilaIng(rid);
+        }
+
+        function actualizarFilaIng(rid) {
+            const tr  = document.getElementById(rid);
+            const sel = tr.querySelector('.er-select');
+            const opt = sel.options[sel.selectedIndex];
+            const costo = parseFloat(opt?.dataset.costo || 0);
+            tr.querySelector('.er-unidad').textContent = opt?.dataset.unidad || '';
+            tr.querySelector('.er-costo').textContent  = 'L. ' + costo.toFixed(2);
+            recalcularEditReceta();
+        }
+
+        function recalcularEditReceta() {
+            let costoTotal = 0;
+            document.querySelectorAll('#tbodyIngEdit tr').forEach(tr => {
+                const sel   = tr.querySelector('.er-select');
+                const opt   = sel?.options[sel.selectedIndex];
+                const costo = parseFloat(opt?.dataset.costo || 0);
+                const cant  = parseFloat(tr.querySelector('.er-cant')?.value) || 0;
+                const sub   = costo * cant;
+                const tdC   = tr.querySelector('.er-costo');
+                const tdT   = tr.querySelector('.er-total');
+                if (tdC) tdC.textContent = 'L. ' + costo.toFixed(2);
+                if (tdT) tdT.textContent = 'L. ' + sub.toFixed(2);
+                costoTotal += sub;
+            });
+            const pv = parseFloat(document.getElementById('editRecetaPrecio')?.value) || 0;
+            const util = pv - costoTotal;
+            const margen = pv > 0 ? (util / pv * 100) : 0;
+            const tdTotal  = document.getElementById('erTotalCosto');
+            const tdMargen = document.getElementById('erMargenCalc');
+            if (tdTotal)  tdTotal.textContent  = 'L. ' + costoTotal.toFixed(2);
+            if (tdMargen) tdMargen.textContent = margen.toFixed(1) + '%';
+        }
+
+        function cerrarModalEditarReceta() {
+            document.getElementById('modalEditarReceta').style.display = 'none';
+        }
+
+        async function guardarEdicionReceta() {
+            const id     = document.getElementById('editRecetaId').value;
+            const plato  = document.getElementById('editRecetaPlato').value;
+            const precio = parseFloat(document.getElementById('editRecetaPrecio').value);
+            const margen = parseFloat(document.getElementById('editRecetaMargen').value);
+            const btn    = document.getElementById('btnGuardarReceta');
+
+            if (!precio || precio <= 0) { showNotification('El precio de venta debe ser mayor a 0', 'error'); return; }
+            if (!margen || margen <= 0 || margen >= 100) { showNotification('El margen debe estar entre 1 y 99', 'error'); return; }
+
+            const ingredientes = [];
+            let hayError = false;
+
+            document.querySelectorAll('#tbodyIngEdit tr').forEach(tr => {
+                const sel  = tr.querySelector('.er-select');
+                const opt  = sel?.options[sel.selectedIndex];
+                const cant = parseFloat(tr.querySelector('.er-cant')?.value);
+                if (!opt?.value) return;
+                if (!cant || cant <= 0) { showNotification('Cantidad inválida', 'error'); hayError = true; return; }
+                ingredientes.push({
+                    codigo: opt.value,
+                    nombre: opt.dataset.nombre,
+                    unidad: opt.dataset.unidad || '',
+                    cantidad: cant,
+                    costoUnitario: parseFloat(opt.dataset.costo || 0)
+                });
+            });
+
+            if (hayError) return;
+            if (ingredientes.length === 0) { showNotification('Agregá al menos un ingrediente', 'error'); return; }
+
+            btn.disabled = true; btn.textContent = '⏳ Guardando...';
+
+            try {
+                const resp = await fetch(`/recetas/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ plato, ingredientes, precioVenta: precio, margenObjetivo: margen / 100 })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    showNotification(`✅ Receta actualizada — Costo: L.${parseFloat(data.costoNuevo).toFixed(2)} | Margen: ${data.margenNuevo}%`, 'success');
+                    cerrarModalEditarReceta();
+                    setTimeout(() => location.reload(), 1800);
+                } else {
+                    showNotification(data.error || 'Error al actualizar', 'error');
+                    btn.disabled = false; btn.textContent = '💾 Guardar Receta';
+                }
+            } catch(e) {
+                showNotification('Error de conexión', 'error');
+                btn.disabled = false; btn.textContent = '💾 Guardar Receta';
+            }
+        }
+
+        document.getElementById('modalEditarReceta').addEventListener('click', function(e) {
+            if (e.target === this) cerrarModalEditarReceta();
+        });
+    </script>
+
+    <!-- ============================================================
+         MODAL HISTORIAL DE PRECIOS
+    ============================================================ -->
+    <div id="modalHistorial" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);
+         z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:16px;width:100%;max-width:900px;
+                    max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+
+            <!-- Header modal -->
+            <div style="display:flex;justify-content:space-between;align-items:center;
+                        padding:1.25rem 1.5rem;border-bottom:1px solid #eee;
+                        background:linear-gradient(135deg,#667eea,#764ba2);border-radius:16px 16px 0 0;">
+                <h3 id="modalTitulo" style="margin:0;color:white;font-size:1.1rem;">📈 Historial de Precios</h3>
+                <button onclick="cerrarModal()" style="background:rgba(255,255,255,0.25);border:none;
+                        color:white;border-radius:50%;width:34px;height:34px;cursor:pointer;
+                        font-size:1.2rem;display:flex;align-items:center;justify-content:center;">✕</button>
+            </div>
+
+            <!-- Body modal -->
+            <div style="padding:1.5rem;">
+
+                <!-- Cargando -->
+                <div id="modalCargando" style="text-align:center;padding:3rem;color:#999;">
+                    <div style="font-size:2rem;">⏳</div>
+                    <p>Cargando historial...</p>
+                </div>
+
+                <!-- Sin datos -->
+                <div id="sinHistorial" style="display:none;text-align:center;padding:3rem;color:#999;">
+                    <div style="font-size:3rem;">📋</div>
+                    <h4>Sin historial de cambios</h4>
+                    <p>Los cambios se registran al usar "Actualizar Costos" o "Editar Precio".</p>
+                </div>
+
+                <!-- Contenido -->
+                <div id="modalContenido" style="display:none;">
+
+                    <!-- Gráfico -->
+                    <div style="background:#f8f9fa;border-radius:12px;padding:1rem;margin-bottom:1.5rem;">
+                        <canvas id="graficoPreciosCanvas" height="120"></canvas>
+                    </div>
+
+                    <!-- Tabla -->
+                    <h4 style="margin-bottom:0.75rem;">📋 Registros de Cambios</h4>
+                    <div style="overflow-x:auto;">
+                        <table class="table" style="font-size:0.88rem;">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Tipo de Cambio</th>
+                                    <th>Costo</th>
+                                    <th>Precio Venta</th>
+                                    <th>Margen</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyHistorialPrecios"></tbody>
+                        </table>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL EDITAR RECETA COMPLETA -->
+    <div id="modalEditarReceta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);
+         z-index:9999;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;">
+        <div style="background:white;border-radius:16px;width:100%;max-width:820px;margin:1rem auto;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.35);overflow:hidden;">
+            <div style="background:linear-gradient(135deg,#0068c9,#004a8f);padding:1.2rem 1.5rem;
+                        display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;color:white;font-size:1.05rem;">✏️ Editar Receta Completa</h3>
+                <button onclick="cerrarModalEditarReceta()"
+                        style="background:rgba(255,255,255,0.2);border:none;color:white;
+                               border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+            <div style="padding:1.5rem;">
+                <input type="hidden" id="editRecetaId">
+
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Plato</label>
+                        <input type="text" id="editRecetaPlato" readonly
+                               style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;
+                                      background:#f9f9f9;box-sizing:border-box;font-weight:bold;font-size:1rem;">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Precio Venta (L.) *</label>
+                        <input type="number" id="editRecetaPrecio" step="0.01" min="0.01" oninput="recalcularEditReceta()"
+                               style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;box-sizing:border-box;">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Margen Objetivo (%)</label>
+                        <input type="number" id="editRecetaMargen" step="1" min="1" max="99"
+                               style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;box-sizing:border-box;">
+                    </div>
+                </div>
+
+                <h4 style="margin-bottom:0.6rem;">Ingredientes</h4>
+                <div style="overflow-x:auto;margin-bottom:0.5rem;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                        <thead>
+                            <tr style="background:#f0f4ff;">
+                                <th style="padding:0.5rem 0.6rem;text-align:left;">Ingrediente</th>
+                                <th style="padding:0.5rem 0.4rem;">Unidad</th>
+                                <th style="padding:0.5rem 0.4rem;">Cantidad</th>
+                                <th style="padding:0.5rem 0.6rem;text-align:right;">Costo Prom.</th>
+                                <th style="padding:0.5rem 0.6rem;text-align:right;">Total</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyIngEdit"></tbody>
+                        <tfoot>
+                            <tr style="background:#f9f9f9;border-top:2px solid #ddd;">
+                                <td colspan="4" style="padding:0.6rem;text-align:right;font-weight:bold;">Costo Total:</td>
+                                <td style="padding:0.6rem;text-align:right;font-weight:bold;color:#0068c9;font-size:1.05rem;" id="erTotalCosto">L. 0.00</td>
+                                <td></td>
+                            </tr>
+                            <tr style="background:#f0fff4;">
+                                <td colspan="4" style="padding:0.5rem;text-align:right;font-size:0.9rem;">Margen calculado:</td>
+                                <td style="padding:0.5rem;text-align:right;font-weight:bold;font-size:0.9rem;" id="erMargenCalc">0%</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+                <button type="button" onclick="agregarFilaIngEdit()"
+                        style="background:#21c354;color:white;border:none;border-radius:6px;padding:0.4rem 0.9rem;cursor:pointer;font-size:0.88rem;margin-bottom:1rem;">
+                    ➕ Agregar Ingrediente
+                </button>
+
+                <div style="background:#f0f4ff;border-radius:8px;padding:0.75rem;margin-bottom:1rem;font-size:0.87rem;color:#555;">
+                    💡 Se guardarán en el <strong>historial de costos</strong> automáticamente. Los costos promedio se toman del inventario actual.
+                </div>
+
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <button onclick="cerrarModalEditarReceta()"
+                            style="padding:0.65rem 1.25rem;border:1px solid #ddd;border-radius:8px;cursor:pointer;background:white;">
+                        Cancelar
+                    </button>
+                    <button id="btnGuardarReceta" onclick="guardarEdicionReceta()"
+                            style="padding:0.65rem 1.5rem;background:#0068c9;color:white;border:none;
+                                   border-radius:8px;cursor:pointer;font-weight:bold;">
+                        💾 Guardar Receta
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

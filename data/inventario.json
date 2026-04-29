@@ -1,0 +1,10 @@
+[
+  {
+    "codigo": "001",
+    "ingrediente": "ZAMBOS PICANTE",
+    "unidad": "Unidad",
+    "stock": 0,
+    "costoUnitario": 0,
+    "stockMinimo": 5
+  }
+]

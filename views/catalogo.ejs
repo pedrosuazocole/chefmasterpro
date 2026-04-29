@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo - Chef Master Pro</title>
+    <link rel="stylesheet" href="/css/styles.css">
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+    
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📋 Catálogo de Artículos</h1>
+            <p class="subtitle">Registrá y administrá los insumos del sistema</p>
+        </header>
+        
+        <div class="tabs">
+            <button class="tab-btn active" onclick="switchTab('registrar')">➕ Registrar</button>
+            <button class="tab-btn" onclick="switchTab('modificar')">✏️ Modificar</button>
+        </div>
+        
+        <!-- TAB REGISTRAR -->
+        <div id="tab-registrar" class="tab-content active">
+            <div class="card">
+                <div class="card-header">
+                    <h3>Nuevo Artículo</h3>
+                </div>
+                <div class="card-body">
+                    <form id="formNuevoArticulo" onsubmit="crearArticulo(event)">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Nombre del Producto *</label>
+                                <input type="text" id="nombreNuevo" required
+                                       placeholder="Ej: PAPAS, ACEITE, SAL..."
+                                       style="text-transform:uppercase;">
+                            </div>
+                            <div class="form-group">
+                                <label>Unidad de Medida *</label>
+                                <select id="unidadNueva" required>
+                                    <option value="Unidad">Unidad</option>
+                                    <option value="Libra">Libra</option>
+                                    <option value="Kg">Kilogramo</option>
+                                    <option value="Gramo">Gramo</option>
+                                    <option value="Litro">Litro</option>
+                                    <option value="Ml">Mililitro</option>
+                                    <option value="Onza">Onza</option>
+                                    <option value="Docena">Docena</option>
+                                    <option value="Caja">Caja</option>
+                                    <option value="Bolsa">Bolsa</option>
+                                </select>
+                            </div>
+                        </div>
+                        <button type="submit" class="btn btn-primary">💾 Guardar Artículo</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        
+        <!-- TAB MODIFICAR -->
+        <div id="tab-modificar" class="tab-content">
+            <div class="card">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
+                    <h3>Modificar / Eliminar Artículos</h3>
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                        <input type="text" id="buscarCatalogo"
+                               placeholder="🔍 Buscar artículo..."
+                               onkeyup="filtrarCatalogo()"
+                               style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:200px;">
+                        <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarCatalogoExcel()" style="background:#21c354;color:white;">📊 Excel</button>
+                        <button class="btn btn-sm" onclick="exportarCatalogoPDF()" style="background:#ff4b4b;color:white;">📄 PDF</button>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <% if (catalogo && catalogo.length > 0) { %>
+                    <div class="table-container">
+                        <table class="table">
+                            <thead>
+                                <tr>
+                                    <th>Código</th>
+                                    <th>Nombre</th>
+                                    <th>Unidad</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tbodyCatalogo">
+                                <% for(var i=0; i<catalogo.length; i++) {
+                                    var art = catalogo[i];
+                                    var nombreArt = art.ingrediente || art.nombre || '';
+                                %>
+                                <tr data-nombre="<%= nombreArt.toLowerCase() %>">
+                                    <td>
+                                        <code style="background:#f0f4ff;padding:0.15rem 0.4rem;border-radius:4px;">
+                                            <%= art.codigo %>
+                                        </code>
+                                    </td>
+                                    <td><strong><%= nombreArt %></strong></td>
+                                    <td>
+                                        <span style="background:#e8f4fd;padding:0.2rem 0.5rem;border-radius:4px;font-size:0.85rem;">
+                                            <%= art.unidad %>
+                                        </span>
+                                    </td>
+                                    <td style="white-space:nowrap;">
+                                        <button class="btn btn-sm btn-editar-art"
+                                                data-id="<%= art.id %>"
+                                                data-nombre="<%= nombreArt %>"
+                                                data-unidad="<%= art.unidad %>"
+                                                style="background:#0068c9;color:white;padding:0.3rem 0.7rem;margin-right:0.3rem;cursor:pointer;border:none;border-radius:6px;">
+                                            ✏️ Editar
+                                        </button>
+                                        <button class="btn btn-sm btn-eliminar-art"
+                                                data-id="<%= art.id %>"
+                                                data-nombre="<%= nombreArt %>"
+                                                style="background:#ff4b4b;color:white;padding:0.3rem 0.7rem;cursor:pointer;border:none;border-radius:6px;">
+                                            🗑️ Eliminar
+                                        </button>
+                                    </td>
+                                </tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                    <p style="margin-top:0.5rem;font-size:0.85rem;color:#999;text-align:right;">
+                        Total: <%= catalogo.length %> artículos
+                    </p>
+                    <% } else { %>
+                    <div style="text-align:center;padding:3rem;color:#999;">
+                        <div style="font-size:3rem;">📋</div>
+                        <p>No hay artículos registrados.</p>
+                        <button class="btn btn-primary" onclick="switchTab('registrar')">➕ Registrar Primero</button>
+                    </div>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- MODAL EDITAR ARTÍCULO -->
+    <div id="modalEditarCatalogo" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);
+         z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:16px;width:100%;max-width:440px;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="background:linear-gradient(135deg,#0068c9,#004a8f);padding:1.2rem 1.5rem;
+                        display:flex;justify-content:space-between;align-items:center;border-radius:16px 16px 0 0;">
+                <h3 style="margin:0;color:white;font-size:1.05rem;">✏️ Editar Artículo</h3>
+                <button onclick="cerrarModalCatalogo()"
+                        style="background:rgba(255,255,255,0.2);border:none;color:white;
+                               border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
+            </div>
+            <div style="padding:1.5rem;">
+                <input type="hidden" id="editCatId">
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Nombre del Artículo *</label>
+                    <input type="text" id="editCatNombre" required
+                           style="width:100%;padding:0.65rem;border:1px solid #ddd;border-radius:8px;
+                                  font-size:1rem;box-sizing:border-box;text-transform:uppercase;">
+                </div>
+                <div class="form-group" style="margin-bottom:1.25rem;">
+                    <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Unidad de Medida *</label>
+                    <select id="editCatUnidad"
+                            style="width:100%;padding:0.65rem;border:1px solid #ddd;border-radius:8px;
+                                   font-size:1rem;box-sizing:border-box;">
+                        <option value="Unidad">Unidad</option>
+                        <option value="Libra">Libra</option>
+                        <option value="Kg">Kilogramo</option>
+                        <option value="Gramo">Gramo</option>
+                        <option value="Litro">Litro</option>
+                        <option value="Ml">Mililitro</option>
+                        <option value="Onza">Onza</option>
+                        <option value="Docena">Docena</option>
+                        <option value="Caja">Caja</option>
+                        <option value="Bolsa">Bolsa</option>
+                    </select>
+                </div>
+                <div style="background:#f0f4ff;border-radius:8px;padding:0.75rem;margin-bottom:1.25rem;font-size:0.88rem;color:#555;">
+                    💡 Al guardar se actualizará también en el <strong>Inventario</strong>.
+                </div>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <button onclick="cerrarModalCatalogo()"
+                            style="padding:0.65rem 1.25rem;border:1px solid #ddd;border-radius:8px;cursor:pointer;background:white;">
+                        Cancelar
+                    </button>
+                    <button id="btnGuardarCatalogo" onclick="guardarEdicionCatalogo()"
+                            style="padding:0.65rem 1.5rem;background:#0068c9;color:white;border:none;
+                                   border-radius:8px;cursor:pointer;font-weight:bold;">
+                        💾 Guardar Cambios
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/js/main.js"></script>
+    <script src="/js/catalogo.js"></script>
+    <script>
+        function filtrarCatalogo() {
+            var busq = document.getElementById('buscarCatalogo').value.toLowerCase();
+            var filas = document.querySelectorAll('#tbodyCatalogo tr');
+            filas.forEach(function(fila) {
+                var nombre = fila.dataset.nombre || '';
+                fila.style.display = (!busq || nombre.includes(busq)) ? '' : 'none';
+            });
+        }
+
+        document.getElementById('modalEditarCatalogo').addEventListener('click', function(e) {
+            if (e.target === this) cerrarModalCatalogo();
+        });
+
+        // Delegación de eventos — sin onclick en EJS, cero problemas de escape
+        document.addEventListener('DOMContentLoaded', function() {
+            document.addEventListener('click', function(e) {
+                var btnEditar   = e.target.closest('.btn-editar-art');
+                var btnEliminar = e.target.closest('.btn-eliminar-art');
+                if (btnEditar)   editarArticulo(btnEditar);
+                if (btnEliminar) eliminarArticulo(btnEliminar);
+            });
+        });
+    </script>
+</body>
+</html>

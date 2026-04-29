@@ -1,0 +1,62 @@
+╔══════════════════════════════════════════════════════════════╗
+║           🍽️  CHEF MASTER PRO v1.6                          ║
+║           De la Compra a la Venta, Todo Bajo Control        ║
+╚══════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════
+⚠️  REQUISITO IMPORTANTE: NODE.JS v14 o superior
+═══════════════════════════════════════════════════════════════
+
+Si al instalar aparece error con tu versión de Node.js, 
+necesitás actualizarlo:
+
+1. Descargá Node.js v18 LTS desde:
+   https://nodejs.org/es/download
+
+2. Elegí: "Windows Installer (.msi) - 64-bit"
+
+3. Instalá normalmente (siguiente, siguiente, finalizar)
+
+4. Cerrá y volvé a abrir el símbolo del sistema (CMD)
+
+5. Verificá con: node --version
+   (Debe mostrar v18.x.x o superior)
+
+═══════════════════════════════════════════════════════════════
+INSTALACIÓN
+═══════════════════════════════════════════════════════════════
+
+1. Doble click en: INSTALL.bat
+2. Doble click en: START.bat
+3. Abrí el navegador en: http://localhost:3000
+
+═══════════════════════════════════════════════════════════════
+CREDENCIALES
+═══════════════════════════════════════════════════════════════
+
+Usuario:    admin
+Contraseña: admin123
+
+═══════════════════════════════════════════════════════════════
+NOVEDADES v1.6
+═══════════════════════════════════════════════════════════════
+
+✅ Historial de Cambios de Precio en Recetas
+   - Botón "📈 Historial de Precios" en cada receta
+   - Gráfico de líneas: Costo, Precio Venta y Margen
+   - Tabla con todos los cambios registrados
+
+✅ Kardex de Producto Terminado
+   - Tab "📋 Kardex PT" con entradas y salidas
+   - Entradas primero, luego salidas
+   - Resumen: total entradas, salidas y saldo neto
+   - Filtros por plato y tipo de movimiento
+
+✅ Exportaciones sin dependencias pesadas
+   - Archivos CSV que abren directamente en Excel
+   - Reporte PDF de recetas imprimible desde el navegador
+   - Compatible con cualquier versión de Excel
+
+═══════════════════════════════════════════════════════════════
+Instituto Tecnológico Santo Tomás - Honduras 🇭🇳
+═══════════════════════════════════════════════════════════════

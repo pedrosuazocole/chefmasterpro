@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es-HN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Chef Master Pro</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+</head>
+<body>
+    <%- include('partials/sidebar') %>
+
+    <main class="main-content">
+        <header class="page-header">
+            <h1>📊 Panel de Control</h1>
+            <p class="subtitle">Chef Master Pro — resumen general del sistema</p>
+        </header>
+
+        <!-- KPIs -->
+        <div class="metrics-grid">
+            <div class="metric-card">
+                <div class="metric-icon">💰</div>
+                <div class="metric-content">
+                    <h3>Inversión en Bodega</h3>
+                    <p class="metric-value">L. <%= totalInventario.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') %></p>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">🍽️</div>
+                <div class="metric-content">
+                    <h3>Recetas Activas</h3>
+                    <p class="metric-value"><%= recetasActivas %></p>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">📊</div>
+                <div class="metric-content">
+                    <h3>Margen Promedio</h3>
+                    <p class="metric-value"><%= margenPromedio %>%</p>
+                </div>
+            </div>
+            <div class="metric-card <%= stockBajo > 0 ? 'alert-card' : '' %>">
+                <div class="metric-icon">⚠️</div>
+                <div class="metric-content">
+                    <h3>Stock Bajo</h3>
+                    <p class="metric-value"><%= stockBajo %></p>
+                </div>
+            </div>
+            <div class="metric-card">
+                <div class="metric-icon">📤</div>
+                <div class="metric-content">
+                    <h3>Total Salidas (PT)</h3>
+                    <p class="metric-value"><%= totalSalidas %></p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Fila de widgets -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;margin-bottom:1.25rem;">
+
+            <!-- WIDGET: Platillos más vendidos -->
+            <div class="card" style="margin:0;">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <h3>🏆 Platillos más Vendidos</h3>
+                    <a href="/producto-terminado" style="font-size:0.85rem;color:#0068c9;text-decoration:none;">Ver más →</a>
+                </div>
+                <div class="card-body">
+                    <% if (platillosMasVendidos.length === 0) { %>
+                        <div style="text-align:center;padding:2rem;color:#999;">
+                            <div style="font-size:2.5rem;">🍽️</div>
+                            <p style="font-size:0.9rem;">Sin registros de salidas aún.</p>
+                        </div>
+                    <% } else { %>
+                        <canvas id="chartVentas" height="180"></canvas>
+                        <table style="width:100%;border-collapse:collapse;margin-top:1rem;font-size:0.88rem;">
+                            <thead><tr style="background:#f8f9fa;">
+                                <th style="padding:0.4rem 0.6rem;text-align:left;">#</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:left;">Plato</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:right;">Uds. Vendidas</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:right;">Ingresos</th>
+                            </tr></thead>
+                            <tbody>
+                            <% platillosMasVendidos.forEach((p, i) => { %>
+                            <tr style="border-bottom:1px solid #f0f0f0;">
+                                <td style="padding:0.4rem 0.6rem;">
+                                    <span style="background:<%= i===0?'#ffd700':i===1?'#c0c0c0':i===2?'#cd7f32':'#f0f4ff' %>;
+                                                 padding:0.15rem 0.5rem;border-radius:10px;font-size:0.82rem;font-weight:bold;">
+                                        <%= i+1 %>
+                                    </span>
+                                </td>
+                                <td style="padding:0.4rem 0.6rem;font-weight:bold;"><%= p.plato %></td>
+                                <td style="padding:0.4rem 0.6rem;text-align:right;font-weight:bold;color:#21c354;"><%= p.cantidad %></td>
+                                <td style="padding:0.4rem 0.6rem;text-align:right;">L. <%= p.ingresos.toFixed(2) %></td>
+                            </tr>
+                            <% }); %>
+                            </tbody>
+                        </table>
+                    <% } %>
+                </div>
+            </div>
+
+            <!-- WIDGET: Recetas con margen bajo -->
+            <div class="card" style="margin:0;">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <h3>⚠️ Recetas — Margen Bajo (<%= umbralMargen %>%)</h3>
+                    <a href="/recetas" style="font-size:0.85rem;color:#0068c9;text-decoration:none;">Revisar →</a>
+                </div>
+                <div class="card-body">
+                    <% if (recetasMargenBajo.length === 0) { %>
+                        <div style="text-align:center;padding:2rem;color:#21c354;">
+                            <div style="font-size:2.5rem;">✅</div>
+                            <p style="font-size:0.9rem;font-weight:bold;">Todas las recetas están sobre el umbral del <%= umbralMargen %>%.</p>
+                        </div>
+                    <% } else { %>
+                        <div style="background:#fff3cd;border-radius:8px;padding:0.75rem;margin-bottom:1rem;font-size:0.85rem;">
+                            🔔 <strong><%= recetasMargenBajo.length %> receta(s)</strong> tienen margen por debajo del <%= umbralMargen %>%. Se recomienda revisar precios o costos.
+                        </div>
+                        <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                            <thead><tr style="background:#fff3cd;">
+                                <th style="padding:0.4rem 0.6rem;text-align:left;">Plato</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:right;">Costo</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:right;">Precio</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:right;">Margen</th>
+                            </tr></thead>
+                            <tbody>
+                            <% recetasMargenBajo.forEach(r => { %>
+                            <tr style="border-bottom:1px solid #f0f0f0;background:#fffbf0;">
+                                <td style="padding:0.4rem 0.6rem;font-weight:bold;"><%= r.plato %></td>
+                                <td style="padding:0.4rem 0.6rem;text-align:right;">L. <%= parseFloat(r.costo).toFixed(2) %></td>
+                                <td style="padding:0.4rem 0.6rem;text-align:right;">L. <%= parseFloat(r.precio).toFixed(2) %></td>
+                                <td style="padding:0.4rem 0.6rem;text-align:right;">
+                                    <span style="background:#ff4b4b;color:white;padding:0.15rem 0.5rem;border-radius:10px;font-size:0.82rem;font-weight:bold;">
+                                        <%= r.margen %>%
+                                    </span>
+                                </td>
+                            </tr>
+                            <% }); %>
+                            </tbody>
+                        </table>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stock bajo y últimas producciones -->
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.25rem;">
+
+            <!-- Stock bajo -->
+            <% if (stockBajoItems.length > 0) { %>
+            <div class="card" style="margin:0;">
+                <div class="card-header" style="background:#fff5f5;">
+                    <h3 style="color:#c00;">⚠️ Insumos con Stock Bajo</h3>
+                </div>
+                <div class="card-body">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                        <thead><tr style="background:#fff5f5;">
+                            <th style="padding:0.4rem 0.6rem;text-align:left;">Insumo</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;">Stock</th>
+                            <th style="padding:0.4rem 0.6rem;text-align:right;">Mínimo</th>
+                        </tr></thead>
+                        <tbody>
+                        <% stockBajoItems.forEach(i => { %>
+                        <tr style="border-bottom:1px solid #f0f0f0;">
+                            <td style="padding:0.4rem 0.6rem;font-weight:bold;"><%= i.ingrediente %></td>
+                            <td style="padding:0.4rem 0.6rem;text-align:right;color:#ff4b4b;font-weight:bold;"><%= parseFloat(i.stock).toFixed(2) %> <%= i.unidad %></td>
+                            <td style="padding:0.4rem 0.6rem;text-align:right;color:#888;"><%= i.stockMinimo %></td>
+                        </tr>
+                        <% }); %>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <% } %>
+
+            <!-- Últimas producciones -->
+            <div class="card" style="margin:0;">
+                <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+                    <h3>👨‍🍳 Últimas Producciones</h3>
+                    <a href="/produccion" style="font-size:0.85rem;color:#0068c9;text-decoration:none;">Ver todas →</a>
+                </div>
+                <div class="card-body">
+                    <% if (ultimasProduciones.length === 0) { %>
+                        <p style="text-align:center;color:#999;padding:1.5rem;">Sin producciones aún.</p>
+                    <% } else { %>
+                        <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                            <thead><tr style="background:#f8f9fa;">
+                                <th style="padding:0.4rem 0.6rem;text-align:left;">Plato</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:center;">Cant.</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:right;">Costo</th>
+                                <th style="padding:0.4rem 0.6rem;text-align:left;">Fecha</th>
+                            </tr></thead>
+                            <tbody>
+                            <% ultimasProduciones.forEach(p => { %>
+                            <tr style="border-bottom:1px solid #f0f0f0;">
+                                <td style="padding:0.4rem 0.6rem;font-weight:bold;"><%= p.plato %></td>
+                                <td style="padding:0.4rem 0.6rem;text-align:center;"><span style="background:#e8f4fd;padding:0.15rem 0.5rem;border-radius:8px;"><%= p.cantidad %></span></td>
+                                <td style="padding:0.4rem 0.6rem;text-align:right;">L. <%= parseFloat(p.costoProduccion).toFixed(2) %></td>
+                                <td style="padding:0.4rem 0.6rem;font-size:0.82rem;color:#888;"><%= new Date(p.fecha).toLocaleDateString('es-HN') %></td>
+                            </tr>
+                            <% }); %>
+                            </tbody>
+                        </table>
+                    <% } %>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script src="/js/main.js"></script>
+    <script>
+    <% if (platillosMasVendidos.length > 0) { %>
+    const ctx = document.getElementById('chartVentas').getContext('2d');
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: [<%= platillosMasVendidos.map(p => JSON.stringify(p.plato)).join(',') %>],
+            datasets: [{
+                label: 'Unidades vendidas',
+                data: [<%= platillosMasVendidos.map(p => p.cantidad).join(',') %>],
+                backgroundColor: ['#ff4b4b','#0068c9','#21c354','#ff9800','#764ba2'],
+                borderRadius: 6
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+        }
+    });
+    <% } %>
+    </script>
+</body>
+</html>
