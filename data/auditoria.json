@@ -1,18 +1,1 @@
-[
-  {
-    "id": "mohgx36q7yaqzy84p6o",
-    "fecha": "2026-04-27T17:25:28.802Z",
-    "usuario": "1",
-    "accion": "DELETE_CATALOGO",
-    "detalle": "Eliminó artículo: ZAMBOS PICANTE (001)",
-    "ip": "::1"
-  },
-  {
-    "id": "mohgxgiybj216vstdl8",
-    "fecha": "2026-04-27T17:25:46.090Z",
-    "usuario": "1",
-    "accion": "DELETE_CATALOGO",
-    "detalle": "Eliminó artículo: ZAMBOS (001)",
-    "ip": "::1"
-  }
-]
+[]

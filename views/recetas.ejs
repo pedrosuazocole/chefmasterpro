@@ -122,7 +122,7 @@
                              data-receta-id="<%= r.id %>"
                              data-plato="<%= r.plato %>"
                              data-precio="<%= r.precioVenta %>"
-                             data-margen="<%= r.alerta.margenObjetivo %>">
+                             data-margen="<%= Math.round((r.margenObjetivo || 0.7) * 100) %>">
                             <!-- Encabezado receta -->
                             <div style="background:<%= colorFondo %>;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;">
                                 <div>
@@ -190,7 +190,10 @@
                                     </thead>
                                     <tbody>
                                         <% r.detalleExpandido.forEach((ing, idx) => { %>
-                                        <tr style="background:<%= idx % 2 === 0 ? 'white' : '#fafafa' %>;">
+                                        <tr class="fila-ing-detalle"
+                                            data-codigo="<%= ing.Codigo %>"
+                                            data-cantidad="<%= ing.Cantidad %>"
+                                            style="background:<%= idx % 2 === 0 ? 'white' : '#fafafa' %>;">
                                             <td style="padding:0.55rem 1rem;border-bottom:1px solid #f0f0f0;">
                                                 <code style="background:#f0f4ff;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.82rem;"><%= ing.Codigo %></code>
                                             </td>
@@ -566,25 +569,124 @@
         }
 
         // Cerrar modal con click afuera
-        document.getElementById('modalHistorial').addEventListener('click', function(e) {
-            if (e.target === this) cerrarModal();
-        });
+        // (asignado en DOMContentLoaded porque el modal está después del script)
 
         // ============================================================
         // EDITAR RECETA COMPLETA
         // ============================================================
-        function abrirEditarReceta(id) {
-            // Buscar datos de la receta en el DOM (ya renderizados por el servidor)
-            const fila = document.querySelector(`[data-receta-id="${id}"]`);
-            if (!fila) {
-                showNotification('No se pudo cargar la receta para editar', 'error');
-                return;
+        // EDICIÓN DIRECTA DE RECETA CON INGREDIENTES
+        // ============================================================
+        let inventarioParaEditar = [];
+
+        async function abrirEditarReceta(id) {
+            // Cargar inventario si no está disponible
+            if (inventarioParaEditar.length === 0) {
+                try {
+                    const r = await fetch('/api/inventario');
+                    inventarioParaEditar = await r.json();
+                } catch(e) { showNotification('Error cargando inventario', 'error'); return; }
             }
+
+            // Cargar receta desde el DOM
+            const tarjeta = document.querySelector(`[data-receta-id="${id}"]`);
+            if (!tarjeta) { showNotification('Receta no encontrada', 'error'); return; }
+
             document.getElementById('editRecetaId').value    = id;
-            document.getElementById('editRecetaPlato').value = fila.dataset.plato || '';
-            document.getElementById('editRecetaPrecio').value= fila.dataset.precio || '';
-            document.getElementById('editRecetaMargen').value= fila.dataset.margen || '70';
+            document.getElementById('editRecetaPlato').value = tarjeta.dataset.plato || '';
+            document.getElementById('editRecetaPrecio').value= parseFloat(tarjeta.dataset.precio || 0).toFixed(2);
+            document.getElementById('editRecetaMargen').value= parseFloat(tarjeta.dataset.margen || 70);
+
+            // Cargar ingredientes actuales desde la tabla de detalleExpandido
+            const tbodyEdit = document.getElementById('tbodyIngEdit');
+            tbodyEdit.innerHTML = '';
+
+            // Buscar filas de ingredientes de esta tarjeta
+            const filaIng = tarjeta.querySelectorAll('.fila-ing-detalle');
+            filaIng.forEach(fila => {
+                const codigo   = fila.dataset.codigo   || '';
+                const cantidad = fila.dataset.cantidad || '';
+                agregarFilaIngEdit({ codigo, cantidad });
+            });
+
+            // Si no hay filas en el DOM, agregar una vacía
+            if (tbodyEdit.children.length === 0) agregarFilaIngEdit();
+
+            recalcularEditReceta();
             document.getElementById('modalEditarReceta').style.display = 'flex';
+        }
+
+        function agregarFilaIngEdit(item = null) {
+            const tbody = document.getElementById('tbodyIngEdit');
+            const rid   = 'er_' + Date.now() + '_' + Math.random().toString(36).substr(2,4);
+
+            const opts = inventarioParaEditar.map(i =>
+                `<option value="${i.codigo}" data-costo="${i.costoUnitario}" data-nombre="${i.ingrediente}" data-unidad="${i.unidad}"
+                         ${item && item.codigo === i.codigo ? 'selected' : ''}>${i.ingrediente}</option>`
+            ).join('');
+
+            const tr = document.createElement('tr');
+            tr.id = rid;
+            tr.style.borderBottom = '1px solid #f0f0f0';
+            tr.innerHTML = `
+                <td style="padding:0.4rem;">
+                    <select class="er-select" onchange="actualizarFilaIng('${rid}')"
+                            style="width:100%;padding:0.4rem;border:1px solid #ddd;border-radius:5px;font-size:0.88rem;">
+                        <option value="">Seleccionar...</option>${opts}
+                    </select>
+                </td>
+                <td class="er-unidad" style="padding:0.4rem;font-size:0.82rem;color:#555;"></td>
+                <td style="padding:0.4rem;">
+                    <input type="number" class="er-cant" step="0.01" min="0.01" placeholder="0"
+                           value="${item ? item.cantidad : ''}"
+                           oninput="recalcularEditReceta()"
+                           style="width:85px;padding:0.4rem;border:1px solid #ddd;border-radius:5px;font-size:0.88rem;">
+                </td>
+                <td class="er-costo" style="padding:0.4rem;text-align:right;font-size:0.85rem;color:#0068c9;font-weight:bold;">L. 0.00</td>
+                <td class="er-total" style="padding:0.4rem;text-align:right;font-weight:bold;color:#21c354;">L. 0.00</td>
+                <td style="padding:0.4rem;text-align:center;">
+                    <button onclick="document.getElementById('${rid}').remove();recalcularEditReceta();"
+                            style="background:#ff4b4b;color:white;border:none;border-radius:5px;padding:0.2rem 0.5rem;cursor:pointer;font-size:0.82rem;">🗑️</button>
+                </td>`;
+            tbody.appendChild(tr);
+
+            // FIX: forzar actualización de unidad/costo/total ahora que la fila está en el DOM
+            // El 'selected' en el HTML no dispara onchange automáticamente
+            if (item && item.codigo) {
+                actualizarFilaIng(rid);
+            }
+        }
+
+        function actualizarFilaIng(rid) {
+            const tr  = document.getElementById(rid);
+            const sel = tr.querySelector('.er-select');
+            const opt = sel.options[sel.selectedIndex];
+            const costo = parseFloat(opt?.dataset.costo || 0);
+            tr.querySelector('.er-unidad').textContent = opt?.dataset.unidad || '';
+            tr.querySelector('.er-costo').textContent  = 'L. ' + costo.toFixed(2);
+            recalcularEditReceta();
+        }
+
+        function recalcularEditReceta() {
+            let costoTotal = 0;
+            document.querySelectorAll('#tbodyIngEdit tr').forEach(tr => {
+                const sel   = tr.querySelector('.er-select');
+                const opt   = sel?.options[sel.selectedIndex];
+                const costo = parseFloat(opt?.dataset.costo || 0);
+                const cant  = parseFloat(tr.querySelector('.er-cant')?.value) || 0;
+                const sub   = costo * cant;
+                const tdC   = tr.querySelector('.er-costo');
+                const tdT   = tr.querySelector('.er-total');
+                if (tdC) tdC.textContent = 'L. ' + costo.toFixed(2);
+                if (tdT) tdT.textContent = 'L. ' + sub.toFixed(2);
+                costoTotal += sub;
+            });
+            const pv = parseFloat(document.getElementById('editRecetaPrecio')?.value) || 0;
+            const util = pv - costoTotal;
+            const margen = pv > 0 ? (util / pv * 100) : 0;
+            const tdTotal  = document.getElementById('erTotalCosto');
+            const tdMargen = document.getElementById('erMargenCalc');
+            if (tdTotal)  tdTotal.textContent  = 'L. ' + costoTotal.toFixed(2);
+            if (tdMargen) tdMargen.textContent = margen.toFixed(1) + '%';
         }
 
         function cerrarModalEditarReceta() {
@@ -592,43 +694,70 @@
         }
 
         async function guardarEdicionReceta() {
-            const id      = document.getElementById('editRecetaId').value;
-            const precio  = parseFloat(document.getElementById('editRecetaPrecio').value);
-            const margen  = parseFloat(document.getElementById('editRecetaMargen').value);
+            const id     = document.getElementById('editRecetaId').value;
+            const plato  = document.getElementById('editRecetaPlato').value;
+            const precio = parseFloat(document.getElementById('editRecetaPrecio').value);
+            const margen = parseFloat(document.getElementById('editRecetaMargen').value);
+            const btn    = document.getElementById('btnGuardarReceta');
 
-            if (!precio || precio <= 0) {
-                showNotification('El precio de venta debe ser mayor a 0', 'error'); return;
-            }
-            if (!margen || margen <= 0 || margen >= 100) {
-                showNotification('El margen objetivo debe estar entre 1 y 99', 'error'); return;
-            }
+            if (!precio || precio <= 0) { showNotification('El precio de venta debe ser mayor a 0', 'error'); return; }
+            if (!margen || margen <= 0 || margen >= 100) { showNotification('El margen debe estar entre 1 y 99', 'error'); return; }
+
+            const ingredientes = [];
+            let hayError = false;
+
+            document.querySelectorAll('#tbodyIngEdit tr').forEach(tr => {
+                const sel  = tr.querySelector('.er-select');
+                const opt  = sel?.options[sel.selectedIndex];
+                const cant = parseFloat(tr.querySelector('.er-cant')?.value);
+                if (!opt?.value) return;
+                if (!cant || cant <= 0) { showNotification('Cantidad inválida', 'error'); hayError = true; return; }
+                ingredientes.push({
+                    codigo: opt.value,
+                    nombre: opt.dataset.nombre,
+                    unidad: opt.dataset.unidad || '',
+                    cantidad: cant,
+                    costoUnitario: parseFloat(opt.dataset.costo || 0)
+                });
+            });
+
+            if (hayError) return;
+            if (ingredientes.length === 0) { showNotification('Agregá al menos un ingrediente', 'error'); return; }
+
+            btn.disabled = true; btn.textContent = '⏳ Guardando...';
 
             try {
-                const btn = document.getElementById('btnGuardarReceta');
-                btn.disabled = true; btn.textContent = '⏳ Guardando...';
-
-                const response = await fetch(`/recetas/${id}/precio`, {
+                const resp = await fetch(`/recetas/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ precioVenta: precio, margenObjetivo: margen / 100 })
+                    body: JSON.stringify({ plato, ingredientes, precioVenta: precio, margenObjetivo: margen / 100 })
                 });
-                const data = await response.json();
-
+                const data = await resp.json();
                 if (data.success) {
-                    showNotification('✅ Receta actualizada correctamente', 'success');
+                    showNotification(`✅ Receta actualizada — Costo: L.${parseFloat(data.costoNuevo).toFixed(2)} | Margen: ${data.margenNuevo}%`, 'success');
                     cerrarModalEditarReceta();
-                    setTimeout(() => location.reload(), 1500);
+                    setTimeout(() => location.reload(), 1800);
                 } else {
                     showNotification(data.error || 'Error al actualizar', 'error');
-                    btn.disabled = false; btn.textContent = '💾 Guardar';
+                    btn.disabled = false; btn.textContent = '💾 Guardar Receta';
                 }
-            } catch (error) {
+            } catch(e) {
                 showNotification('Error de conexión', 'error');
+                btn.disabled = false; btn.textContent = '💾 Guardar Receta';
             }
         }
 
-        document.getElementById('modalEditarReceta').addEventListener('click', function(e) {
-            if (e.target === this) cerrarModalEditarReceta();
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cerrar modales al hacer click fuera — se asigna aquí porque
+            // los modales están DESPUÉS de este bloque script en el HTML
+            const mH = document.getElementById('modalHistorial');
+            if (mH) mH.addEventListener('click', function(e) {
+                if (e.target === this) cerrarModal();
+            });
+            const mE = document.getElementById('modalEditarReceta');
+            if (mE) mE.addEventListener('click', function(e) {
+                if (e.target === this) cerrarModalEditarReceta();
+            });
         });
     </script>
 
@@ -696,14 +825,14 @@
         </div>
     </div>
 
-    <!-- MODAL EDITAR RECETA -->
-    <div id="modalEditarReceta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);
-         z-index:9999;align-items:center;justify-content:center;padding:1rem;">
-        <div style="background:white;border-radius:16px;width:100%;max-width:440px;
-                    box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+    <!-- MODAL EDITAR RECETA COMPLETA -->
+    <div id="modalEditarReceta" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);
+         z-index:9999;align-items:flex-start;justify-content:center;padding:1rem;overflow-y:auto;">
+        <div style="background:white;border-radius:16px;width:100%;max-width:820px;margin:1rem auto;
+                    box-shadow:0 20px 60px rgba(0,0,0,0.35);overflow:hidden;">
             <div style="background:linear-gradient(135deg,#0068c9,#004a8f);padding:1.2rem 1.5rem;
-                        display:flex;justify-content:space-between;align-items:center;border-radius:16px 16px 0 0;">
-                <h3 style="margin:0;color:white;font-size:1.05rem;">✏️ Editar Receta</h3>
+                        display:flex;justify-content:space-between;align-items:center;">
+                <h3 style="margin:0;color:white;font-size:1.05rem;">✏️ Editar Receta Completa</h3>
                 <button onclick="cerrarModalEditarReceta()"
                         style="background:rgba(255,255,255,0.2);border:none;color:white;
                                border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:1rem;">✕</button>
@@ -711,30 +840,60 @@
             <div style="padding:1.5rem;">
                 <input type="hidden" id="editRecetaId">
 
-                <div class="form-group" style="margin-bottom:1rem;">
-                    <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Plato</label>
-                    <input type="text" id="editRecetaPlato" readonly
-                           style="width:100%;padding:0.65rem;border:1px solid #ddd;border-radius:8px;
-                                  background:#f9f9f9;box-sizing:border-box;font-weight:bold;">
+                <div style="display:grid;grid-template-columns:2fr 1fr 1fr;gap:1rem;margin-bottom:1rem;">
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Plato</label>
+                        <input type="text" id="editRecetaPlato" readonly
+                               style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;
+                                      background:#f9f9f9;box-sizing:border-box;font-weight:bold;font-size:1rem;">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Precio Venta (L.) *</label>
+                        <input type="number" id="editRecetaPrecio" step="0.01" min="0.01" oninput="recalcularEditReceta()"
+                               style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;box-sizing:border-box;">
+                    </div>
+                    <div class="form-group" style="margin:0;">
+                        <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Margen Objetivo (%)</label>
+                        <input type="number" id="editRecetaMargen" step="1" min="1" max="99"
+                               style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;box-sizing:border-box;">
+                    </div>
                 </div>
 
-                <div class="form-group" style="margin-bottom:1rem;">
-                    <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Precio de Venta (L.) *</label>
-                    <input type="number" id="editRecetaPrecio" step="0.01" min="0.01"
-                           style="width:100%;padding:0.65rem;border:1px solid #ddd;border-radius:8px;
-                                  font-size:1rem;box-sizing:border-box;">
+                <h4 style="margin-bottom:0.6rem;">Ingredientes</h4>
+                <div style="overflow-x:auto;margin-bottom:0.5rem;">
+                    <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+                        <thead>
+                            <tr style="background:#f0f4ff;">
+                                <th style="padding:0.5rem 0.6rem;text-align:left;">Ingrediente</th>
+                                <th style="padding:0.5rem 0.4rem;">Unidad</th>
+                                <th style="padding:0.5rem 0.4rem;">Cantidad</th>
+                                <th style="padding:0.5rem 0.6rem;text-align:right;">Costo Prom.</th>
+                                <th style="padding:0.5rem 0.6rem;text-align:right;">Total</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tbodyIngEdit"></tbody>
+                        <tfoot>
+                            <tr style="background:#f9f9f9;border-top:2px solid #ddd;">
+                                <td colspan="4" style="padding:0.6rem;text-align:right;font-weight:bold;">Costo Total:</td>
+                                <td style="padding:0.6rem;text-align:right;font-weight:bold;color:#0068c9;font-size:1.05rem;" id="erTotalCosto">L. 0.00</td>
+                                <td></td>
+                            </tr>
+                            <tr style="background:#f0fff4;">
+                                <td colspan="4" style="padding:0.5rem;text-align:right;font-size:0.9rem;">Margen calculado:</td>
+                                <td style="padding:0.5rem;text-align:right;font-weight:bold;font-size:0.9rem;" id="erMargenCalc">0%</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
                 </div>
+                <button type="button" onclick="agregarFilaIngEdit()"
+                        style="background:#21c354;color:white;border:none;border-radius:6px;padding:0.4rem 0.9rem;cursor:pointer;font-size:0.88rem;margin-bottom:1rem;">
+                    ➕ Agregar Ingrediente
+                </button>
 
-                <div class="form-group" style="margin-bottom:1.25rem;">
-                    <label style="font-weight:600;display:block;margin-bottom:0.4rem;">Margen Objetivo (%)</label>
-                    <input type="number" id="editRecetaMargen" step="1" min="1" max="99"
-                           style="width:100%;padding:0.65rem;border:1px solid #ddd;border-radius:8px;
-                                  font-size:1rem;box-sizing:border-box;">
-                    <small style="color:#888;">Ej: 70 para un margen del 70%</small>
-                </div>
-
-                <div style="background:#f0f4ff;border-radius:8px;padding:0.75rem;margin-bottom:1.25rem;font-size:0.88rem;color:#555;">
-                    💡 Los costos se mantienen igual. Solo se actualiza el precio de venta y el margen objetivo.
+                <div style="background:#f0f4ff;border-radius:8px;padding:0.75rem;margin-bottom:1rem;font-size:0.87rem;color:#555;">
+                    💡 Se guardarán en el <strong>historial de costos</strong> automáticamente. Los costos promedio se toman del inventario actual.
                 </div>
 
                 <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
@@ -745,7 +904,7 @@
                     <button id="btnGuardarReceta" onclick="guardarEdicionReceta()"
                             style="padding:0.65rem 1.5rem;background:#0068c9;color:white;border:none;
                                    border-radius:8px;cursor:pointer;font-weight:bold;">
-                        💾 Guardar
+                        💾 Guardar Receta
                     </button>
                 </div>
             </div>

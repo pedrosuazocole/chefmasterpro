@@ -62,10 +62,15 @@
             <div class="card">
                 <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
                     <h3>Modificar / Eliminar Artículos</h3>
-                    <input type="text" id="buscarCatalogo"
-                           placeholder="🔍 Buscar artículo..."
-                           onkeyup="filtrarCatalogo()"
-                           style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:220px;">
+                    <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center;">
+                        <input type="text" id="buscarCatalogo"
+                               placeholder="🔍 Buscar artículo..."
+                               onkeyup="filtrarCatalogo()"
+                               style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:200px;">
+                        <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
+                        <button class="btn btn-sm" onclick="exportarCatalogoExcel()" style="background:#21c354;color:white;">📊 Excel</button>
+                        <button class="btn btn-sm" onclick="exportarCatalogoPDF()" style="background:#ff4b4b;color:white;">📄 PDF</button>
+                    </div>
                 </div>
                 <div class="card-body">
                     <% if (catalogo && catalogo.length > 0) { %>

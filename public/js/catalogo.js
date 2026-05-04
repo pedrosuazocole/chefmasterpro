@@ -134,3 +134,13 @@ async function eliminarArticulo(btn) {
         showNotification('Error de conexión', 'error');
     }
 }
+
+// Exportar catálogo a CSV/Excel
+function exportarCatalogoExcel() {
+    window.location.href = '/api/exportar/catalogo/excel';
+}
+
+// Exportar catálogo a PDF (HTML imprimible)
+function exportarCatalogoPDF() {
+    window.open('/api/exportar/catalogo/pdf', '_blank');
+}

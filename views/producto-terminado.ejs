@@ -72,14 +72,10 @@
                                             <div style="color: #21c354; font-weight: bold;">Venta: L. <%= valorVenta.toFixed(2) %></div>
                                         </td>
                                         <td>
-                                            <button class="btn btn-sm" onclick="registrarSalidaRapida('<%= p.plato %>', <%= p.cantidad %>)"
-                                                    style="background: #ff4b4b; color: white; margin-right: 0.25rem;">
-                                                📤 Salida
-                                            </button>
-                                            <button class="btn btn-sm" onclick="eliminarProductoTerminado('<%= p.id %>', '<%= p.plato %>')"
-                                                    style="background: #999; color: white;" title="Eliminar">
-                                                🗑️
-                                            </button>
+                                            <span style="font-size:0.85rem;color:#888;">
+                                                Usá la pestaña<br>
+                                                <strong>Registrar Salida</strong>
+                                            </span>
                                         </td>
                                     </tr>
                                     <% }); %>
@@ -262,6 +258,7 @@
                     </div>
                 </div>
                 <div class="card-body">
+                    <!-- Formulario nueva salida -->
                     <form id="formSalida" onsubmit="registrarSalida(event)">
                         <div class="form-row">
                             <div class="form-group">
@@ -281,7 +278,6 @@
                                 <small id="stockDisponible" class="text-muted"></small>
                             </div>
                         </div>
-                        
                         <div class="form-group">
                             <label>Motivo de Salida</label>
                             <select id="motivoSalida" required>
@@ -293,11 +289,78 @@
                                 <option value="Otro">Otro</option>
                             </select>
                         </div>
-                        
-                        <button type="submit" class="btn btn-primary btn-block">
-                            📤 Registrar Salida
-                        </button>
+                        <button type="submit" class="btn btn-primary btn-block">📤 Registrar Salida</button>
                     </form>
+
+                    <!-- Historial de salidas registradas -->
+                    <hr style="margin:1.5rem 0;border:none;border-top:1px solid #eee;">
+                    <h4 style="margin-bottom:1rem;">📋 Salidas Registradas</h4>
+
+                    <%
+                    const soloSalidas = movimientos
+                        .filter(m => m.tipo === 'SALIDA')
+                        .sort((a,b) => new Date(b.fecha) - new Date(a.fecha));
+                    %>
+
+                    <% if (soloSalidas.length > 0) { %>
+                    <div class="table-container">
+                        <table class="table" style="font-size:0.88rem;" id="tablaSalidas">
+                            <thead>
+                                <tr>
+                                    <th>Fecha</th>
+                                    <th>Plato</th>
+                                    <th>Cantidad</th>
+                                    <th>Motivo</th>
+                                    <th>Stock Ant.</th>
+                                    <th>Stock Nuevo</th>
+                                    <th>Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                            <% soloSalidas.forEach(s => { %>
+                            <tr>
+                                <td style="white-space:nowrap;font-size:0.82rem;">
+                                    <%= new Date(s.fecha).toLocaleDateString('es-HN') %><br>
+                                    <small style="color:#999;"><%= new Date(s.fecha).toLocaleTimeString('es-HN',{hour:'2-digit',minute:'2-digit'}) %></small>
+                                </td>
+                                <td><strong><%= s.plato %></strong></td>
+                                <td style="text-align:center;">
+                                    <span style="background:#fff5f5;color:#ff4b4b;padding:0.2rem 0.5rem;border-radius:8px;font-weight:bold;">
+                                        -<%= s.cantidad %>
+                                    </span>
+                                </td>
+                                <td><small style="color:#666;"><%= s.motivo || s.origen || '-' %></small></td>
+                                <td style="text-align:center;color:#888;"><%= s.stockAnterior ?? '-' %></td>
+                                <td style="text-align:center;"><strong><%= s.stockNuevo ?? '-' %></strong></td>
+                                <td style="white-space:nowrap;">
+                                    <% if (s.id && (s.motivo || s.origen || '').match(/Venta|Consumo|Degustación|Merma|Donación|Otro/i)) { %>
+                                    <button class="btn-editar-salida"
+                                            data-id="<%= s.id %>"
+                                            data-plato="<%= s.plato %>"
+                                            data-cantidad="<%= s.cantidad %>"
+                                            data-motivo="<%= s.motivo || s.origen || 'Venta' %>"
+                                            style="background:#0068c9;color:white;border:none;border-radius:6px;padding:0.25rem 0.55rem;cursor:pointer;font-size:0.82rem;margin-right:0.25rem;">
+                                        ✏️
+                                    </button>
+                                    <button class="btn-eliminar-salida"
+                                            data-id="<%= s.id %>"
+                                            data-plato="<%= s.plato %>"
+                                            data-cantidad="<%= s.cantidad %>"
+                                            style="background:#ff4b4b;color:white;border:none;border-radius:6px;padding:0.25rem 0.55rem;cursor:pointer;font-size:0.82rem;">
+                                        🗑️
+                                    </button>
+                                    <% } else { %>
+                                    <small style="color:#bbb;">Sistema</small>
+                                    <% } %>
+                                </td>
+                            </tr>
+                            <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                    <% } else { %>
+                    <p style="text-align:center;color:#999;padding:1.5rem;">No hay salidas registradas aún.</p>
+                    <% } %>
                 </div>
             </div>
         </div>
@@ -357,25 +420,108 @@
     function filtrarMovimientos() {
         const plato = document.getElementById('filtroMovPlato').value;
         const tipo  = document.getElementById('filtroMovTipo').value;
-        const filas = document.querySelectorAll('#tbodyMovPT tr');
-        
-        filas.forEach(fila => {
+        document.querySelectorAll('#tbodyMovPT tr').forEach(fila => {
             const okPlato = !plato || fila.dataset.plato === plato;
             const okTipo  = !tipo  || fila.dataset.tipo  === tipo;
             fila.style.display = (okPlato && okTipo) ? '' : 'none';
         });
     }
+    function imprimirMovimientos() { window.open('/api/exportar/movimientos-pt/pdf', '_blank'); }
+    function exportarSalidaExcel() { window.location.href = '/api/exportar/movimientos-pt/excel'; }
+    function exportarSalidaPDF()   { window.open('/api/exportar/movimientos-pt/pdf', '_blank'); }
 
-    // ── IMPRIMIR / EXPORTAR DESDE REGISTRAR SALIDA ───────────
-    function imprimirMovimientos() {
-        window.open('/api/exportar/movimientos-pt/pdf', '_blank');
+    // ── EDITAR / ELIMINAR SALIDAS ────────────────────────────
+    document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('click', function(e) {
+            const btnEd = e.target.closest('.btn-editar-salida');
+            const btnEl = e.target.closest('.btn-eliminar-salida');
+            if (btnEd) abrirEditarSalida(btnEd);
+            if (btnEl) confirmarEliminarSalida(btnEl);
+        });
+        document.getElementById('modalEditarSalida').addEventListener('click', function(e) {
+            if (e.target === this) cerrarModalSalida();
+        });
+    });
+
+    function abrirEditarSalida(btn) {
+        document.getElementById('editSalidaId').value    = btn.dataset.id;
+        document.getElementById('editSalidaPlato').value = btn.dataset.plato;
+        document.getElementById('editSalidaCant').value  = btn.dataset.cantidad;
+        const sel = document.getElementById('editSalidaMotivo');
+        for (let o of sel.options) { if (o.value === btn.dataset.motivo) { o.selected = true; break; } }
+        document.getElementById('modalEditarSalida').style.display = 'flex';
     }
-    function exportarSalidaExcel() {
-        window.location.href = '/api/exportar/movimientos-pt/excel';
+    function cerrarModalSalida() { document.getElementById('modalEditarSalida').style.display = 'none'; }
+
+    async function guardarEdicionSalida() {
+        const id      = document.getElementById('editSalidaId').value;
+        const plato   = document.getElementById('editSalidaPlato').value;
+        const cantidad= parseInt(document.getElementById('editSalidaCant').value);
+        const motivo  = document.getElementById('editSalidaMotivo').value;
+        const btn     = document.getElementById('btnGuardarSalida');
+        if (!cantidad || cantidad < 1) { showNotification('Cantidad inválida','error'); return; }
+        if (!confirm(`¿Confirmar edición?\nPlato: ${plato}\nNueva cantidad: ${cantidad}\n⚠️ Se recalculará el stock.`)) return;
+        btn.disabled = true; btn.textContent = '⏳ Guardando...';
+        try {
+            const r = await fetch(`/producto-terminado/salida/${id}`, {
+                method: 'PUT', headers: {'Content-Type':'application/json'},
+                body: JSON.stringify({ cantidad, motivo })
+            });
+            const data = await r.json();
+            if (data.success) { showNotification('✅ Salida actualizada','success'); cerrarModalSalida(); setTimeout(()=>location.reload(),1500); }
+            else { showNotification(data.error||'Error','error'); btn.disabled=false; btn.textContent='💾 Guardar'; }
+        } catch(e) { showNotification('Error de conexión','error'); btn.disabled=false; btn.textContent='💾 Guardar'; }
     }
-    function exportarSalidaPDF() {
-        window.open('/api/exportar/movimientos-pt/pdf', '_blank');
+
+    async function confirmarEliminarSalida(btn) {
+        const id=btn.dataset.id, plato=btn.dataset.plato, cantidad=btn.dataset.cantidad;
+        if (!confirm(`¿Eliminar salida?\nPlato: ${plato}\nCantidad: ${cantidad}\n⚠️ Se devolverá la cantidad al stock.`)) return;
+        try {
+            const r = await fetch(`/producto-terminado/salida/${id}`, { method: 'DELETE' });
+            const data = await r.json();
+            if (data.success) { showNotification('✅ Salida eliminada y stock restaurado','success'); setTimeout(()=>location.reload(),1500); }
+            else showNotification(data.error||'Error al eliminar','error');
+        } catch(e) { showNotification('Error de conexión','error'); }
     }
     </script>
+
+    <!-- MODAL EDITAR SALIDA -->
+    <div id="modalEditarSalida" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);
+         z-index:9999;align-items:center;justify-content:center;padding:1rem;">
+        <div style="background:white;border-radius:14px;width:100%;max-width:420px;box-shadow:0 20px 60px rgba(0,0,0,0.3);">
+            <div style="background:linear-gradient(135deg,#0068c9,#004a8f);padding:1.2rem 1.5rem;
+                        display:flex;justify-content:space-between;align-items:center;border-radius:14px 14px 0 0;">
+                <h3 style="margin:0;color:white;font-size:1rem;">✏️ Editar Salida</h3>
+                <button onclick="cerrarModalSalida()" style="background:rgba(255,255,255,0.2);border:none;color:white;border-radius:50%;width:28px;height:28px;cursor:pointer;">✕</button>
+            </div>
+            <div style="padding:1.5rem;">
+                <input type="hidden" id="editSalidaId">
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label style="font-weight:600;display:block;margin-bottom:0.35rem;">Plato</label>
+                    <input type="text" id="editSalidaPlato" readonly style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;background:#f5f5f5;box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom:1rem;">
+                    <label style="font-weight:600;display:block;margin-bottom:0.35rem;">Nueva Cantidad *</label>
+                    <input type="number" id="editSalidaCant" min="1" style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;box-sizing:border-box;">
+                </div>
+                <div class="form-group" style="margin-bottom:1.25rem;">
+                    <label style="font-weight:600;display:block;margin-bottom:0.35rem;">Motivo</label>
+                    <select id="editSalidaMotivo" style="width:100%;padding:0.6rem;border:1px solid #ddd;border-radius:7px;box-sizing:border-box;">
+                        <option value="Venta">Venta</option>
+                        <option value="Consumo interno">Consumo interno</option>
+                        <option value="Degustación">Degustación</option>
+                        <option value="Merma">Merma</option>
+                        <option value="Donación">Donación</option>
+                        <option value="Otro">Otro</option>
+                    </select>
+                </div>
+                <div style="background:#fff3cd;border-radius:7px;padding:0.65rem;margin-bottom:1rem;font-size:0.85rem;">⚠️ Se recalculará el stock del producto terminado.</div>
+                <div style="display:flex;gap:0.75rem;justify-content:flex-end;">
+                    <button onclick="cerrarModalSalida()" style="padding:0.6rem 1.2rem;border:1px solid #ddd;border-radius:7px;cursor:pointer;background:white;">Cancelar</button>
+                    <button id="btnGuardarSalida" onclick="guardarEdicionSalida()" style="padding:0.6rem 1.4rem;background:#0068c9;color:white;border:none;border-radius:7px;cursor:pointer;font-weight:bold;">💾 Guardar</button>
+                </div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>

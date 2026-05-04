@@ -126,13 +126,22 @@
                 <div style="display:flex;gap:0.5rem;flex-wrap:wrap;">
                     <button class="btn btn-sm" onclick="window.print()" style="background:#555;color:white;">🖨️ Imprimir</button>
                     <button class="btn btn-sm" onclick="exportarExcel('inventario','inventario')" style="background:#21c354;color:white;">📊 Excel</button>
+                    <button class="btn btn-sm" onclick="window.open('/api/exportar/catalogo/pdf','_blank')" style="background:#ff4b4b;color:white;">📄 PDF</button>
                 </div>
             </div>
             <div class="card-body">
-                <div style="margin-bottom:1rem;">
+                <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
                     <input type="text" id="filtroInvReporte" placeholder="🔍 Buscar ingrediente..."
-                           onkeyup="filtrarInvReporte()"
-                           style="padding:0.55rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:260px;font-size:0.95rem;">
+                           oninput="filtrarInvReporte()"
+                           style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:240px;">
+                    <select id="filtroStockInv" onchange="filtrarInvReporte()"
+                            style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;">
+                        <option value="">Todos los stocks</option>
+                        <option value="bajo">⚠️ Stock bajo</option>
+                        <option value="ok">✅ Stock normal</option>
+                        <option value="cero">🔴 Sin stock</option>
+                    </select>
+                    <span id="contInv" style="font-size:0.85rem;color:#888;"></span>
                 </div>
                 <table class="table" id="tablaInvReporte">
                     <thead>
@@ -141,38 +150,60 @@
                             <th>Ingrediente</th>
                             <th>Stock</th>
                             <th>Unidad</th>
-                            <th>Costo Unit.</th>
-                            <th style="background:#fff3cd;color:#856404;">Costo Promedio</th>
+                            <th style="background:#fffbf0;color:#856404;">Costo Promedio</th>
                             <th>Valor Total</th>
+                            <th>Estado</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <% inventario.forEach(item => { 
+                    <tbody id="tbodyInv">
+                        <% inventario.forEach(item => {
                             const valorTotal = item.stock * item.costoUnitario;
+                            const estado = item.stock === 0 ? 'cero' : item.stock < (item.stockMinimo||0) ? 'bajo' : 'ok';
                         %>
-                        <tr class="fila-inv-reporte" data-nombre="<%= (item.ingrediente||'').toLowerCase() %>">
-                            <td><%= item.codigo %></td>
+                        <tr class="fila-inv-reporte"
+                            data-nombre="<%= (item.ingrediente||'').toLowerCase() %>"
+                            data-estado="<%= estado %>">
+                            <td><code style="background:#f0f4ff;padding:0.1rem 0.4rem;border-radius:4px;font-size:0.82rem;"><%= item.codigo %></code></td>
                             <td><strong><%= item.ingrediente %></strong></td>
-                            <td><%= item.stock.toFixed(2) %></td>
-                            <td><%= item.unidad %></td>
-                            <td>L. <%= item.costoUnitario.toFixed(2) %></td>
-                            <td style="background:#fffbf0;font-weight:bold;color:#856404;">
-                                L. <%= item.costoUnitario.toFixed(4) %>
+                            <td style="font-weight:bold;color:<%= estado==='cero'?'#ff4b4b':estado==='bajo'?'#ff9800':'#21c354' %>"><%= parseFloat(item.stock).toFixed(2) %></td>
+                            <td><span style="background:#e8f4fd;padding:0.15rem 0.4rem;border-radius:4px;font-size:0.82rem;"><%= item.unidad %></span></td>
+                            <td style="background:#fffbf0;font-weight:bold;color:#856404;">L. <%= item.costoUnitario.toFixed(4) %></td>
+                            <td><strong style="color:#0068c9;">L. <%= valorTotal.toFixed(2) %></strong></td>
+                            <td>
+                                <% if (estado === 'cero') { %>
+                                    <span style="background:#ff4b4b;color:white;padding:0.15rem 0.5rem;border-radius:8px;font-size:0.78rem;">SIN STOCK</span>
+                                <% } else if (estado === 'bajo') { %>
+                                    <span style="background:#ff9800;color:white;padding:0.15rem 0.5rem;border-radius:8px;font-size:0.78rem;">STOCK BAJO</span>
+                                <% } else { %>
+                                    <span style="background:#21c354;color:white;padding:0.15rem 0.5rem;border-radius:8px;font-size:0.78rem;">OK</span>
+                                <% } %>
                             </td>
-                            <td><strong>L. <%= valorTotal.toFixed(2) %></strong></td>
                         </tr>
                         <% }); %>
                     </tbody>
                     <tfoot>
-                        <tr style="background: var(--light); font-weight: bold;">
-                            <td colspan="6" style="text-align: right;">TOTAL INVENTARIO:</td>
-                            <td>L. <%= totalInventario.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',') %></td>
+                        <tr style="background:var(--light);font-weight:bold;">
+                            <td colspan="5" style="text-align:right;">TOTAL INVENTARIO:</td>
+                            <td>L. <%= totalInventario.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',') %></td>
+                            <td></td>
                         </tr>
                     </tfoot>
                 </table>
+                <!-- Paginación -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;flex-wrap:wrap;gap:0.5rem;">
+                    <div style="display:flex;gap:0.4rem;" id="paginaInv"></div>
+                    <select id="porPaginaInv" onchange="filtrarInvReporte()"
+                            style="padding:0.35rem 0.6rem;border:1px solid #ddd;border-radius:5px;font-size:0.85rem;">
+                        <option value="10">10 por página</option>
+                        <option value="20" selected>20 por página</option>
+                        <option value="50">50 por página</option>
+                        <option value="9999">Ver todos</option>
+                    </select>
+                </div>
             </div>
         </div>
         
+
         <% if (recetas.length > 0) { %>
         <div class="card">
             <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:0.75rem;">
@@ -184,33 +215,60 @@
                 </div>
             </div>
             <div class="card-body">
-                <div style="margin-bottom:1rem;">
+                <div style="display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap;margin-bottom:1rem;">
                     <input type="text" id="filtroRecetasReporte" placeholder="🔍 Buscar plato..."
-                           onkeyup="filtrarRecetasReporte()"
-                           style="padding:0.55rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:260px;font-size:0.95rem;">
+                           oninput="filtrarRecetasReporte()"
+                           style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;width:230px;">
+                    <select id="filtroMargenRec" onchange="filtrarRecetasReporte()"
+                            style="padding:0.5rem 0.75rem;border:1px solid var(--border);border-radius:6px;">
+                        <option value="">Todos los márgenes</option>
+                        <option value="bajo">⚠️ Margen bajo (&lt; 50%)</option>
+                        <option value="ok">✅ Margen OK (≥ 50%)</option>
+                    </select>
+                    <span id="contRec" style="font-size:0.85rem;color:#888;"></span>
                 </div>
                 <table class="table" id="tablaRecetasReporte">
                     <thead>
                         <tr>
                             <th>Plato</th>
-                            <th>Costo</th>
-                            <th>Precio Venta</th>
-                            <th>Utilidad</th>
+                            <th>Costo (L.)</th>
+                            <th>Precio Venta (L.)</th>
+                            <th>Utilidad (L.)</th>
                             <th>Margen %</th>
+                            <th>Estado</th>
                         </tr>
                     </thead>
-                    <tbody>
-                        <% recetas.forEach(r => { %>
-                        <tr class="fila-receta-reporte" data-plato="<%= (r.plato||'').toLowerCase() %>">
+                    <tbody id="tbodyRec">
+                        <% recetas.forEach(function(r) {
+                            var margen = parseFloat(r.margenUtilidad * 100);
+                            var estRec = margen >= 50 ? 'ok' : 'bajo';
+                        %>
+                        <tr class="fila-receta-reporte"
+                            data-plato="<%= (r.plato||'').toLowerCase() %>"
+                            data-margen="<%= estRec %>">
                             <td><strong><%= r.plato %></strong></td>
-                            <td>L. <%= r.costoTotalPlato.toFixed(2) %></td>
-                            <td>L. <%= r.precioVenta.toFixed(2) %></td>
-                            <td style="color: #21c354; font-weight: bold;">L. <%= r.valorUtilidad.toFixed(2) %></td>
-                            <td><%= (r.margenUtilidad * 100).toFixed(1) %>%</td>
+                            <td>L. <%= parseFloat(r.costoTotalPlato).toFixed(2) %></td>
+                            <td>L. <%= parseFloat(r.precioVenta).toFixed(2) %></td>
+                            <td style="color:#21c354;font-weight:bold;">L. <%= parseFloat(r.valorUtilidad).toFixed(2) %></td>
+                            <td>
+                                <span style="background:<%= margen>=50?'#21c354':'#ff4b4b' %>;color:white;padding:0.15rem 0.5rem;border-radius:8px;font-size:0.82rem;font-weight:bold;">
+                                    <%= margen.toFixed(1) %>%
+                                </span>
+                            </td>
+                            <td><%= margen>=50?'✅ OK':'⚠️ Revisar' %></td>
                         </tr>
                         <% }); %>
                     </tbody>
                 </table>
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;flex-wrap:wrap;gap:0.5rem;">
+                    <div style="display:flex;gap:0.4rem;" id="paginaRec"></div>
+                    <select id="porPaginaRec" onchange="filtrarRecetasReporte()"
+                            style="padding:0.35rem 0.6rem;border:1px solid #ddd;border-radius:5px;font-size:0.85rem;">
+                        <option value="10" selected>10 por página</option>
+                        <option value="20">20 por página</option>
+                        <option value="9999">Ver todos</option>
+                    </select>
+                </div>
             </div>
         </div>
         <% } %>
@@ -299,9 +357,20 @@
                         </tbody>
                     </table>
                 </div>
-                <p style="margin-top:0.5rem;font-size:0.82rem;color:#999;text-align:right;">
-                    Total movimientos: <%= kardex.length %> · Orden cronológico ascendente
-                </p>
+                <!-- Paginación Kardex -->
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-top:1rem;flex-wrap:wrap;gap:0.5rem;">
+                    <div style="display:flex;gap:0.4rem;" id="paginaKardex"></div>
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        <span id="contKardex" style="font-size:0.85rem;color:#888;"></span>
+                        <select id="porPaginaKardex" onchange="filtrarKardexReporte()"
+                                style="padding:0.35rem 0.6rem;border:1px solid #ddd;border-radius:5px;font-size:0.85rem;">
+                            <option value="15" selected>15 por página</option>
+                            <option value="30">30 por página</option>
+                            <option value="50">50 por página</option>
+                            <option value="9999">Ver todos</option>
+                        </select>
+                    </div>
+                </div>
                 <% } else { %>
                 <div style="text-align:center;padding:2rem;color:#999;">
                     <div style="font-size:2.5rem;">📋</div>
@@ -312,35 +381,312 @@
         </div>
 
     </main>
-    
+
     <script src="/js/main.js"></script>
     <script src="/js/exportar.js"></script>
     <script>
+    // ══════════════════════════════════════════════════════
+    // UTILIDAD DE PAGINACIÓN — reutilizable
+    // ══════════════════════════════════════════════════════
+    function paginar(todasFilas, paginaActual, porPagina, contenedorId) {
+        const total    = todasFilas.length;
+        const totalPag = Math.ceil(total / porPagina);
+        const inicio   = (paginaActual - 1) * porPagina;
+        const fin      = Math.min(inicio + porPagina, total);
+
+        // Mostrar/ocultar filas de esta página
+        todasFilas.forEach((fila, i) => {
+            fila.style.display = (i >= inicio && i < fin) ? '' : 'none';
+        });
+
+        // Renderizar botones de página
+        const contenedor = document.getElementById(contenedorId);
+        if (!contenedor) return;
+        contenedor.innerHTML = '';
+
+        if (totalPag <= 1) return;
+
+        const btnStyle = (activo) =>
+            `padding:0.3rem 0.65rem;border:1px solid ${activo?'#0068c9':'#ddd'};border-radius:5px;cursor:pointer;` +
+            `background:${activo?'#0068c9':'white'};color:${activo?'white':'#333'};font-size:0.82rem;`;
+
+        // Anterior
+        if (paginaActual > 1) {
+            const btn = document.createElement('button');
+            btn.textContent = '‹';
+            btn.style.cssText = btnStyle(false);
+            btn.onclick = () => contenedor.dataset.pagActual = (paginaActual - 1);
+            contenedor.appendChild(btn);
+        }
+
+        // Páginas (máx. 7 botones)
+        const rango = 3;
+        for (let p = Math.max(1, paginaActual - rango); p <= Math.min(totalPag, paginaActual + rango); p++) {
+            const btn = document.createElement('button');
+            btn.textContent = p;
+            btn.style.cssText = btnStyle(p === paginaActual);
+            btn.onclick = () => { contenedor.dataset.pagActual = p; };
+            contenedor.appendChild(btn);
+        }
+
+        // Siguiente
+        if (paginaActual < totalPag) {
+            const btn = document.createElement('button');
+            btn.textContent = '›';
+            btn.style.cssText = btnStyle(false);
+            btn.onclick = () => contenedor.dataset.pagActual = (paginaActual + 1);
+            contenedor.appendChild(btn);
+        }
+
+        return { inicio: inicio + 1, fin, total };
+    }
+
+    // Observer para re-renderizar al cambiar de página vía dataset
+    function observarPaginacion(contenedorId, callbackFiltrar) {
+        const el = document.getElementById(contenedorId);
+        if (!el) return;
+        el.dataset.pagActual = 1;
+        new MutationObserver(() => callbackFiltrar()).observe(el, { attributes: true, attributeFilter: ['data-pag-actual'] });
+    }
+
+    // ══════════════════════════════════════════════════════
+    // FILTROS CON PAGINACIÓN
+    // ══════════════════════════════════════════════════════
+
+    // INVENTARIO
     function filtrarInvReporte() {
-        const busq = document.getElementById('filtroInvReporte').value.toLowerCase();
-        document.querySelectorAll('.fila-inv-reporte').forEach(f => {
-            f.style.display = (!busq || (f.dataset.nombre||'').includes(busq)) ? '' : 'none';
+        const busq  = (document.getElementById('filtroInvReporte')?.value || '').toLowerCase();
+        const stock = document.getElementById('filtroStockInv')?.value || '';
+        const pp    = parseInt(document.getElementById('porPaginaInv')?.value || 20);
+        const pag   = parseInt(document.getElementById('paginaInv')?.dataset.pagActual || 1);
+
+        const todasFilas = [...document.querySelectorAll('.fila-inv-reporte')].filter(f => {
+            const okBusq  = !busq  || (f.dataset.nombre||'').includes(busq);
+            const okStock = !stock || f.dataset.estado === stock;
+            const ok = okBusq && okStock;
+            f.style.display = ok ? '' : 'none'; // marcar visibles
+            return ok;
         });
+
+        const r = paginar(todasFilas, pag, pp, 'paginaInv');
+        const cnt = document.getElementById('contInv');
+        if (cnt) cnt.textContent = `${todasFilas.length} resultado(s)`;
     }
+
+    // RECETAS
     function filtrarRecetasReporte() {
-        const busq = document.getElementById('filtroRecetasReporte').value.toLowerCase();
+        const busq   = (document.getElementById('filtroRecetasReporte')?.value || '').toLowerCase();
+        const margen = document.getElementById('filtroMargenRec')?.value || '';
+        const pp     = parseInt(document.getElementById('porPaginaRec')?.value || 10);
+        const pag    = parseInt(document.getElementById('paginaRec')?.dataset.pagActual || 1);
+
+        const todasFilas = [...document.querySelectorAll('.fila-receta-reporte')].filter(f => {
+            const okBusq  = !busq   || (f.dataset.plato||'').includes(busq);
+            const okMarg  = !margen || f.dataset.margen === margen;
+            return okBusq && okMarg;
+        });
+
+        paginar(todasFilas, pag, pp, 'paginaRec');
+        const cnt = document.getElementById('contRec');
+        if (cnt) cnt.textContent = `${todasFilas.length} resultado(s)`;
+
+        // Ocultar las que no pasaron filtro
         document.querySelectorAll('.fila-receta-reporte').forEach(f => {
-            f.style.display = (!busq || (f.dataset.plato||'').includes(busq)) ? '' : 'none';
+            if (!todasFilas.includes(f)) f.style.display = 'none';
         });
     }
+
+    // KARDEX
     function filtrarKardexReporte() {
-        const fi   = document.getElementById('repKardexFechaI').value;
-        const ff   = document.getElementById('repKardexFechaF').value;
-        const prod = document.getElementById('repKardexProd').value.toLowerCase().trim();
-        const tipo = document.getElementById('repKardexTipo').value;
-        document.querySelectorAll('.fila-kardex-rep').forEach(f => {
+        const fi   = document.getElementById('repKardexFechaI')?.value || '';
+        const ff   = document.getElementById('repKardexFechaF')?.value || '';
+        const prod = (document.getElementById('repKardexProd')?.value || '').toLowerCase().trim();
+        const tipo = document.getElementById('repKardexTipo')?.value || '';
+        const pp   = parseInt(document.getElementById('porPaginaKardex')?.value || 15);
+        const pag  = parseInt(document.getElementById('paginaKardex')?.dataset.pagActual || 1);
+
+        const todasFilas = [...document.querySelectorAll('.fila-kardex-rep')].filter(f => {
             const okFi   = !fi   || (f.dataset.fecha||'') >= fi;
             const okFf   = !ff   || (f.dataset.fecha||'') <= ff;
             const okProd = !prod || (f.dataset.producto||'').includes(prod);
             const okTipo = !tipo || f.dataset.tipo === tipo;
-            f.style.display = (okFi && okFf && okProd && okTipo) ? '' : 'none';
+            return okFi && okFf && okProd && okTipo;
+        });
+
+        paginar(todasFilas, pag, pp, 'paginaKardex');
+        const cnt = document.getElementById('contKardex');
+        if (cnt) cnt.textContent = `${todasFilas.length} movimiento(s)`;
+
+        document.querySelectorAll('.fila-kardex-rep').forEach(f => {
+            if (!todasFilas.includes(f)) f.style.display = 'none';
         });
     }
+
+    // ── B3: REPORTES FINANCIEROS ─────────────────────────
+    async function consultarReporteFinanciero() {
+        const mes = document.getElementById('mesFin').value;
+        const btn = document.getElementById('btnConsultarFin');
+        btn.disabled = true; btn.textContent = '⏳ Calculando...';
+        try {
+            const r = await fetch(`/api/reportes/financieros${mes ? '?mes='+mes : ''}`);
+            const d = await r.json();
+            renderReporteFinanciero(d);
+        } catch(e) {
+            showNotification('Error al consultar reporte financiero', 'error');
+        } finally {
+            btn.disabled = false; btn.textContent = '📊 Consultar';
+        }
+    }
+
+    function fmt(n) { return 'L. ' + parseFloat(n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,','); }
+
+    function renderReporteFinanciero(d) {
+        const cp = d.estadoCostoProd;
+        const cv = d.estadoCostoVentas;
+
+        document.getElementById('finPeriodo').textContent    = d.periodo === 'Acumulado' ? 'Acumulado General' : d.periodo;
+        document.getElementById('finAnio').textContent       = d.anio;
+
+        // Estado Costo Producción
+        document.getElementById('finInvInicialProd').textContent  = fmt(cp.invInicialProd);
+        document.getElementById('finComprasMes').textContent      = fmt(cp.totalComprasMes);
+        document.getElementById('finDisponibles').textContent     = fmt(cp.disponibilidadMes);
+        document.getElementById('finInvFinalProd').textContent    = fmt(cp.invFinalProd);
+        document.getElementById('finCostoProd').textContent       = fmt(cp.costoProdMes);
+        document.getElementById('finComprasAnio').textContent     = fmt(cp.totalComprasAnio);
+
+        // Estado Costo Ventas
+        document.getElementById('finInvInicialPT').textContent    = fmt(cv.invInicialPT);
+        document.getElementById('finEntradasPT').textContent      = fmt(cv.totalEntradasPTMes);
+        document.getElementById('finPTDisponible').textContent    = fmt(cv.ptDisponible);
+        document.getElementById('finInvFinalPT').textContent      = fmt(cv.invFinalPT);
+        document.getElementById('finCostoVentas').textContent     = fmt(cv.costoVentasPT);
+        document.getElementById('finSalidasMes').textContent      = cv.totalSalidasMes + ' uds.';
+        document.getElementById('finSalidasAnio').textContent     = cv.totalSalidasAnio + ' uds.';
+
+        document.getElementById('reporteFinanciero').style.display = 'block';
+    }
+    </script>
+
+    <!-- SECCIÓN: REPORTES FINANCIEROS -->
+    <div class="card" style="border-top:3px solid #0068c9;">
+        <div class="card-header" style="background:linear-gradient(135deg,#f0f4ff,#e8eeff);">
+            <h3 style="color:#0068c9;">💼 Reportes Financieros</h3>
+        </div>
+        <div class="card-body">
+            <div style="display:flex;align-items:flex-end;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap;">
+                <div class="form-group" style="margin:0;">
+                    <label style="font-weight:600;">Mes a Consultar</label>
+                    <input type="month" id="mesFin"
+                           style="padding:0.6rem 0.75rem;border:1px solid #ddd;border-radius:7px;font-size:0.95rem;">
+                    <small style="display:block;color:#888;margin-top:0.2rem;">Vacío = acumulado general</small>
+                </div>
+                <button id="btnConsultarFin" onclick="consultarReporteFinanciero()"
+                        style="padding:0.6rem 1.5rem;background:#0068c9;color:white;border:none;border-radius:7px;cursor:pointer;font-weight:bold;height:42px;">
+                    📊 Consultar
+                </button>
+            </div>
+
+            <div id="reporteFinanciero" style="display:none;">
+                <div style="background:#f8f9fa;border-radius:8px;padding:0.6rem 1rem;margin-bottom:1.5rem;display:flex;gap:2rem;font-size:0.9rem;color:#555;">
+                    <span>📅 Período: <strong id="finPeriodo"></strong></span>
+                    <span>📆 Año: <strong id="finAnio"></strong></span>
+                </div>
+
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:1.5rem;margin-bottom:1rem;">
+
+                    <!-- Estado Costo de Producción -->
+                    <div style="border:1px solid #0068c9;border-radius:10px;overflow:hidden;">
+                        <div style="background:#0068c9;color:white;padding:0.75rem 1rem;">
+                            <strong>📦 Estado de Costo de Producción</strong>
+                        </div>
+                        <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                            <tbody>
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:0.6rem 1rem;color:#555;">Inventario Inicial de Insumos</td>
+                                <td style="padding:0.6rem 1rem;text-align:right;" id="finInvInicialProd">—</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #eee;background:#f0f9ff;">
+                                <td style="padding:0.6rem 1rem;color:#555;">+ Compras del Período</td>
+                                <td style="padding:0.6rem 1rem;text-align:right;font-weight:bold;color:#21c354;" id="finComprasMes">—</td>
+                            </tr>
+                            <tr style="border-bottom:2px solid #0068c9;background:#e8f4ff;">
+                                <td style="padding:0.6rem 1rem;font-weight:bold;">= Disponibilidad Total</td>
+                                <td style="padding:0.6rem 1rem;text-align:right;font-weight:bold;color:#0068c9;" id="finDisponibles">—</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:0.6rem 1rem;color:#555;">- Inventario Final de Insumos</td>
+                                <td style="padding:0.6rem 1rem;text-align:right;color:#ff4b4b;" id="finInvFinalProd">—</td>
+                            </tr>
+                            <tr style="background:#f0fff4;">
+                                <td style="padding:0.75rem 1rem;font-weight:bold;font-size:1rem;">= COSTO DE PRODUCCIÓN</td>
+                                <td style="padding:0.75rem 1rem;text-align:right;font-weight:bold;font-size:1.05rem;color:#21c354;" id="finCostoProd">—</td>
+                            </tr>
+                            <tr style="border-top:2px solid #eee;background:#fafafa;">
+                                <td style="padding:0.5rem 1rem;font-size:0.85rem;color:#888;">📆 Compras Acumuladas Año</td>
+                                <td style="padding:0.5rem 1rem;text-align:right;font-size:0.85rem;color:#888;" id="finComprasAnio">—</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Estado Costo de Ventas PT -->
+                    <div style="border:1px solid #21c354;border-radius:10px;overflow:hidden;">
+                        <div style="background:#21c354;color:white;padding:0.75rem 1rem;">
+                            <strong>🍽️ Estado de Costo de Ventas (PT)</strong>
+                        </div>
+                        <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+                            <tbody>
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:0.6rem 1rem;color:#555;">Inventario Inicial Producto Terminado</td>
+                                <td style="padding:0.6rem 1rem;text-align:right;" id="finInvInicialPT">—</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #eee;background:#f0fff4;">
+                                <td style="padding:0.6rem 1rem;color:#555;">+ Entradas de Producción</td>
+                                <td style="padding:0.6rem 1rem;text-align:right;font-weight:bold;color:#21c354;" id="finEntradasPT">—</td>
+                            </tr>
+                            <tr style="border-bottom:2px solid #21c354;background:#e6ffe6;">
+                                <td style="padding:0.6rem 1rem;font-weight:bold;">= PT Disponible para Venta</td>
+                                <td style="padding:0.6rem 1rem;text-align:right;font-weight:bold;color:#21c354;" id="finPTDisponible">—</td>
+                            </tr>
+                            <tr style="border-bottom:1px solid #eee;">
+                                <td style="padding:0.6rem 1rem;color:#555;">- Inventario Final PT</td>
+                                <td style="padding:0.6rem 1rem;text-align:right;color:#ff4b4b;" id="finInvFinalPT">—</td>
+                            </tr>
+                            <tr style="background:#f0fff4;">
+                                <td style="padding:0.75rem 1rem;font-weight:bold;font-size:1rem;">= COSTO DE VENTAS PT</td>
+                                <td style="padding:0.75rem 1rem;text-align:right;font-weight:bold;font-size:1.05rem;color:#0068c9;" id="finCostoVentas">—</td>
+                            </tr>
+                            <tr style="border-top:2px solid #eee;background:#fafafa;">
+                                <td style="padding:0.5rem 1rem;font-size:0.85rem;color:#888;">Unidades Vendidas (Período)</td>
+                                <td style="padding:0.5rem 1rem;text-align:right;font-size:0.85rem;color:#888;" id="finSalidasMes">—</td>
+                            </tr>
+                            <tr style="background:#fafafa;">
+                                <td style="padding:0.5rem 1rem;font-size:0.85rem;color:#888;">📆 Unidades Vendidas (Acumulado Año)</td>
+                                <td style="padding:0.5rem 1rem;text-align:right;font-size:0.85rem;color:#888;" id="finSalidasAnio">—</td>
+                            </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Inicializar paginación de inventario
+        observarPaginacion('paginaInv', filtrarInvReporte);
+        filtrarInvReporte();
+
+        // Inicializar paginación de recetas
+        observarPaginacion('paginaRec', filtrarRecetasReporte);
+        filtrarRecetasReporte();
+
+        // Inicializar paginación de kardex
+        observarPaginacion('paginaKardex', filtrarKardexReporte);
+        filtrarKardexReporte();
+    });
     </script>
 </body>
 </html>

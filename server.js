@@ -245,27 +245,55 @@ app.post('/logout', (req, res) => {
 // RUTA PRINCIPAL - DASHBOARD
 // ==================================================
 app.get('/', requireAuth, (req, res) => {
-    const inventario = leerDatos(FILES.inventario);
-    const recetas = leerDatos(FILES.recetas);
-    const produccion = leerDatos(FILES.produccion);
-    
-    // Calcular métricas
-    const totalInventario = inventario.reduce((sum, i) => 
-        sum + (i.stock * i.costoUnitario), 0
-    );
-    
-    const stockBajo = inventario.filter(i => i.stock < i.stockMinimo);
-    
-    const margenPromedio = recetas.length > 0
-        ? recetas.reduce((sum, r) => sum + (r.margenUtilidad || 0), 0) / recetas.length
-        : 0;
+    const inventario        = leerDatos(FILES.inventario);
+    const recetas           = leerDatos(FILES.recetas);
+    const produccion        = leerDatos(FILES.produccion);
+    const movimientos       = leerDatos(FILES.movimientosProducto);
+    const productoTerminado = leerDatos(FILES.productoTerminado);
+
+    // Métricas base
+    const totalInventario = inventario.reduce((s,i) => s + (i.stock * i.costoUnitario), 0);
+    const stockBajo       = inventario.filter(i => i.stock < i.stockMinimo);
+    const margenPromedio  = recetas.length > 0
+        ? recetas.reduce((s,r) => s + (r.margenUtilidad||0), 0) / recetas.length : 0;
+
+    // Widget 1: Platillos más vendidos (por salidas de PT)
+    const ventasPorPlato = {};
+    movimientos.filter(m => m.tipo === 'SALIDA').forEach(m => {
+        ventasPorPlato[m.plato] = (ventasPorPlato[m.plato] || 0) + parseInt(m.cantidad || 0);
+    });
+    const platillosMasVendidos = Object.entries(ventasPorPlato)
+        .sort((a,b) => b[1] - a[1])
+        .slice(0, 5)
+        .map(([plato, cantidad]) => {
+            const rec = recetas.find(r => r.plato === plato);
+            const ingresos = rec ? cantidad * rec.precioVenta : 0;
+            return { plato, cantidad, ingresos };
+        });
+
+    // Widget 2: Recetas con margen bajo (umbral configurable, default 50%)
+    const UMBRAL_MARGEN = 50;
+    const recetasMargenBajo = recetas
+        .map(r => ({
+            plato: r.plato,
+            margen: parseFloat((r.margenUtilidad * 100).toFixed(1)),
+            costo: r.costoTotalPlato,
+            precio: r.precioVenta
+        }))
+        .filter(r => r.margen < UMBRAL_MARGEN)
+        .sort((a,b) => a.margen - b.margen);
 
     res.render('dashboard', {
         totalInventario,
-        stockBajo: stockBajo.length,
-        recetasActivas: recetas.length,
-        margenPromedio: (margenPromedio * 100).toFixed(1),
-        ultimasProduciones: produccion.slice(-5).reverse()
+        stockBajo:              stockBajo.length,
+        stockBajoItems:         stockBajo,
+        recetasActivas:         recetas.length,
+        margenPromedio:         (margenPromedio * 100).toFixed(1),
+        ultimasProduciones:     produccion.slice(-5).reverse(),
+        platillosMasVendidos,
+        recetasMargenBajo,
+        umbralMargen:           UMBRAL_MARGEN,
+        totalSalidas:           movimientos.filter(m=>m.tipo==='SALIDA').reduce((s,m)=>s+parseInt(m.cantidad||0),0)
     });
 });
 
@@ -439,156 +467,341 @@ function registrarKardex(producto, tipo, documento, cantidad, costoUnitario, sto
 }
 
 // ==================================================
-// RUTAS DE INVENTARIO/COMPRAS
+// RUTAS DE INVENTARIO/COMPRAS — GESTIÓN POR FACTURA
 // ==================================================
 app.get('/inventario', requireAuth, (req, res) => {
-    const catalogo = leerDatos(FILES.catalogo).filter(c => c.activo);
-    // T2: orden cronológico ascendente — más antiguo primero, más reciente al final
+    const catalogo  = leerDatos(FILES.catalogo).filter(c => c.activo);
     const historial = leerDatos(FILES.historial)
         .sort((a, b) => new Date(a.createdAt || a.fechaFactura) - new Date(b.createdAt || b.fechaFactura));
-    res.render('inventario', { catalogo, historial });
+
+    // Agrupar líneas por factura para la vista
+    const facturas = {};
+    historial.forEach(h => {
+        const key = h.noFactura;
+        if (!facturas[key]) {
+            facturas[key] = {
+                noFactura: h.noFactura,
+                fechaFactura: h.fechaFactura,
+                proveedor: h.proveedor || '',
+                createdAt: h.createdAt,
+                items: [],
+                totalFactura: 0
+            };
+        }
+        facturas[key].items.push(h);
+        facturas[key].totalFactura += parseFloat(h.costoTotal || 0);
+    });
+
+    const facturasArray = Object.values(facturas)
+        .sort((a, b) => new Date(a.createdAt || a.fechaFactura) - new Date(b.createdAt || b.fechaFactura));
+
+    res.render('inventario', { catalogo, historial, facturas: facturasArray });
 });
 
 app.post('/inventario/registrar-compra', requireAuth, (req, res) => {
     const { noFactura, fecha, productos, proveedor } = req.body;
-    
-    const historial = leerDatos(FILES.historial);
+
+    if (!noFactura || !fecha || !productos || productos.length === 0) {
+        return res.status(400).json({ error: 'Datos incompletos' });
+    }
+
+    const historial  = leerDatos(FILES.historial);
     const inventario = leerDatos(FILES.inventario);
-    
-    productos.forEach(p => {
+
+    // Verificar factura duplicada
+    if (historial.some(h => h.noFactura === noFactura)) {
+        return res.status(400).json({ error: `La factura ${noFactura} ya está registrada` });
+    }
+
+    // Procesar atomicamente — recolectar todos los cambios antes de guardar
+    const cambiosInventario = [];
+    const nuevasLineas = [];
+
+    for (const p of productos) {
         const inv = inventario.find(i => i.codigo === p.codigo);
-        
-        if (inv) {
-            const stockAnterior = inv.stock;
-            const costoAnterior = inv.costoUnitario;
-            const cantidadNueva = parseFloat(p.cantidad);
-            const costoNuevo = parseFloat(p.costoUnitario);
-            
-            // Costo promedio ponderado
-            const valorAnterior = stockAnterior * costoAnterior;
-            const valorNuevo = cantidadNueva * costoNuevo;
-            const valorTotal = valorAnterior + valorNuevo;
-            const stockTotal = stockAnterior + cantidadNueva;
-            
-            inv.costoUnitario = stockTotal > 0 ? valorTotal / stockTotal : costoNuevo;
-            inv.stock = stockTotal;
-            
-            // NUEVO: Registrar en Kardex
-            registrarKardex(
-                inv.ingrediente,
-                'ENTRADA',
-                `FACT-${noFactura}`,
-                cantidadNueva,
-                costoNuevo,
-                stockAnterior,
-                inv.stock,
-                `Compra - ${proveedor || 'Sin proveedor'}`
-            );
+        if (!inv) return res.status(400).json({ error: `Producto ${p.codigo} no encontrado en inventario` });
+
+        const cantidadNueva = parseFloat(p.cantidad);
+        const costoNuevo    = parseFloat(p.costoUnitario);
+        if (!cantidadNueva || cantidadNueva <= 0 || !costoNuevo || costoNuevo <= 0) {
+            return res.status(400).json({ error: `Cantidad/Costo inválido para ${p.nombre}` });
         }
-        
-        // Guardar en historial
-        historial.push({
+
+        cambiosInventario.push({ inv, cantidadNueva, costoNuevo });
+        nuevasLineas.push({
             id: generarId(),
             fechaFactura: fecha,
             noFactura,
             codigo: p.codigo,
             producto: p.nombre,
             unidad: p.unidad,
-            cantidad: parseFloat(p.cantidad),
-            costoUnitario: parseFloat(p.costoUnitario),
-            costoTotal: parseFloat(p.cantidad) * parseFloat(p.costoUnitario),
+            cantidad: cantidadNueva,
+            costoUnitario: costoNuevo,
+            costoTotal: cantidadNueva * costoNuevo,
             proveedor: proveedor || '',
             createdAt: new Date().toISOString(),
             createdBy: req.session.userId
         });
+    }
+
+    // Aplicar cambios (ya validados)
+    cambiosInventario.forEach(({ inv, cantidadNueva, costoNuevo }) => {
+        const stockAnterior = inv.stock;
+        const valorAnterior = stockAnterior * inv.costoUnitario;
+        const valorNuevo    = cantidadNueva * costoNuevo;
+        const stockTotal    = stockAnterior + cantidadNueva;
+
+        inv.costoUnitario = stockTotal > 0 ? (valorAnterior + valorNuevo) / stockTotal : costoNuevo;
+        inv.stock = stockTotal;
+
+        registrarKardex(inv.ingrediente, 'ENTRADA', `FACT-${noFactura}`,
+            cantidadNueva, costoNuevo, stockAnterior, inv.stock,
+            `Compra - ${proveedor || 'Sin proveedor'}`);
     });
-    
+
+    nuevasLineas.forEach(l => historial.push(l));
+
     guardarDatos(FILES.historial, historial);
     guardarDatos(FILES.inventario, inventario);
-    
+
     res.json({ success: true });
 });
 
-// Eliminar compra del historial
+// Obtener factura completa por número
+app.get('/inventario/factura/:noFactura', requireAuth, (req, res) => {
+    const { noFactura } = req.params;
+    const historial = leerDatos(FILES.historial);
+    const items = historial.filter(h => h.noFactura === decodeURIComponent(noFactura));
+    if (items.length === 0) return res.status(404).json({ error: 'Factura no encontrada' });
+    res.json({
+        noFactura: items[0].noFactura,
+        fechaFactura: items[0].fechaFactura,
+        proveedor: items[0].proveedor || '',
+        items
+    });
+});
+
+// Editar factura completa (ATOMIC: revierte todo y recalcula)
+app.put('/inventario/factura/:noFactura', requireAuth, (req, res) => {
+    const { noFactura } = req.params;
+    const { fecha, proveedor, productos } = req.body;
+
+    if (!productos || productos.length === 0) {
+        return res.status(400).json({ error: 'La factura debe tener al menos un producto' });
+    }
+
+    let historial  = leerDatos(FILES.historial);
+    let inventario = leerDatos(FILES.inventario);
+    let kardex     = leerDatos(FILES.kardex);
+
+    const lineasAnteriores = historial.filter(h => h.noFactura === noFactura);
+    if (lineasAnteriores.length === 0) return res.status(404).json({ error: 'Factura no encontrada' });
+
+    // PASO 1: Revertir efectos de la factura anterior en inventario y kardex
+    lineasAnteriores.forEach(h => {
+        const inv = inventario.find(i => i.codigo === h.codigo);
+        if (inv) {
+            const cantAnt = parseFloat(h.cantidad);
+            const costoAnt= parseFloat(h.costoUnitario);
+            const stockAnt = inv.stock;
+
+            // Descontar del stock
+            inv.stock = Math.max(0, inv.stock - cantAnt);
+
+            // Recalcular costo promedio sin esta entrada
+            const valorTotalSin = (stockAnt * inv.costoUnitario) - (cantAnt * costoAnt);
+            inv.costoUnitario = inv.stock > 0 ? Math.max(0, valorTotalSin / inv.stock) : inv.costoUnitario;
+        }
+    });
+
+    // Eliminar entradas del kardex relacionadas
+    kardex = kardex.filter(k => k.documento !== `FACT-${noFactura}`);
+
+    // PASO 2: Validar nuevos productos
+    for (const p of productos) {
+        const inv = inventario.find(i => i.codigo === p.codigo);
+        if (!inv) return res.status(400).json({ error: `Producto ${p.codigo} no encontrado` });
+        if (!p.cantidad || p.cantidad <= 0) return res.status(400).json({ error: `Cantidad inválida para ${p.nombre}` });
+        if (!p.costoUnitario || p.costoUnitario <= 0) return res.status(400).json({ error: `Costo inválido para ${p.nombre}` });
+    }
+
+    // PASO 3: Eliminar líneas antiguas y crear nuevas
+    historial = historial.filter(h => h.noFactura !== noFactura);
+
+    const nuevasLineas = productos.map(p => ({
+        id: generarId(),
+        fechaFactura: fecha,
+        noFactura,
+        codigo: p.codigo,
+        producto: p.nombre,
+        unidad: p.unidad || '',
+        cantidad: parseFloat(p.cantidad),
+        costoUnitario: parseFloat(p.costoUnitario),
+        costoTotal: parseFloat(p.cantidad) * parseFloat(p.costoUnitario),
+        proveedor: proveedor || '',
+        createdAt: new Date().toISOString(),
+        createdBy: req.session.userId
+    }));
+
+    // PASO 4: Aplicar nuevos efectos
+    nuevasLineas.forEach(l => {
+        const inv = inventario.find(i => i.codigo === l.codigo);
+        if (inv) {
+            const stockAnt = inv.stock;
+            const valAnt   = stockAnt * inv.costoUnitario;
+            const cantNueva= parseFloat(l.cantidad);
+            const costoNuevo= parseFloat(l.costoUnitario);
+            const valNuevo = cantNueva * costoNuevo;
+            const stockNuevo = stockAnt + cantNueva;
+
+            inv.costoUnitario = stockNuevo > 0 ? (valAnt + valNuevo) / stockNuevo : costoNuevo;
+            inv.stock = stockNuevo;
+
+            kardex.push({
+                id: generarId(),
+                producto: inv.ingrediente,
+                fecha: new Date().toISOString(),
+                tipo: 'ENTRADA',
+                documento: `FACT-${noFactura}`,
+                cantidad: cantNueva,
+                costoUnitario: costoNuevo,
+                valorTotal: cantNueva * costoNuevo,
+                stockAnterior: stockAnt,
+                stockNuevo: inv.stock,
+                observaciones: `Compra editada - ${proveedor || 'Sin proveedor'}`
+            });
+        }
+        historial.push(l);
+    });
+
+    // PASO 5: Guardar todo atomicamente
+    guardarDatos(FILES.historial, historial);
+    guardarDatos(FILES.inventario, inventario);
+    guardarDatos(FILES.kardex, kardex);
+
+    // Recalcular recetas afectadas
+    const codigosAfectados = new Set([
+        ...lineasAnteriores.map(l => l.codigo),
+        ...nuevasLineas.map(l => l.codigo)
+    ]);
+    const recetas = leerDatos(FILES.recetas);
+    recetas.forEach(r => {
+        const detalle = JSON.parse(r.detalleReceta);
+        let cambiado = false;
+        const nuevoDetalle = detalle.map(ing => {
+            if (codigosAfectados.has(ing.Codigo)) {
+                const inv = inventario.find(i => i.codigo === ing.Codigo);
+                if (inv) {
+                    cambiado = true;
+                    return { ...ing, CostoUnitario: inv.costoUnitario, Costo_U: inv.costoUnitario, Subtotal: ing.Cantidad * inv.costoUnitario };
+                }
+            }
+            return ing;
+        });
+        if (cambiado) {
+            r.detalleReceta   = JSON.stringify(nuevoDetalle);
+            r.costoTotalPlato = nuevoDetalle.reduce((s, i) => s + i.Subtotal, 0);
+            r.valorUtilidad   = r.precioVenta - r.costoTotalPlato;
+            r.margenUtilidad  = r.valorUtilidad / r.precioVenta;
+        }
+    });
+    guardarDatos(FILES.recetas, recetas);
+
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
+        accion: 'UPDATE_FACTURA', detalle: `Editó factura ${noFactura} (${productos.length} items)`, ip: req.ip });
+    guardarDatos(FILES.auditoria, auditoria);
+
+    res.json({ success: true });
+});
+
+// Eliminar factura completa (ATOMIC)
+app.delete('/inventario/factura/:noFactura', requireAuth, (req, res) => {
+    const { noFactura } = req.params;
+
+    let historial  = leerDatos(FILES.historial);
+    let inventario = leerDatos(FILES.inventario);
+    let kardex     = leerDatos(FILES.kardex);
+
+    const lineas = historial.filter(h => h.noFactura === noFactura);
+    if (lineas.length === 0) return res.status(404).json({ error: 'Factura no encontrada' });
+
+    // Revertir inventario
+    lineas.forEach(h => {
+        const inv = inventario.find(i => i.codigo === h.codigo);
+        if (inv) {
+            const cant = parseFloat(h.cantidad);
+            const costo= parseFloat(h.costoUnitario);
+            const stockAnt = inv.stock;
+            const valAnt   = stockAnt * inv.costoUnitario;
+
+            inv.stock = Math.max(0, inv.stock - cant);
+            const valNuevo = valAnt - (cant * costo);
+            inv.costoUnitario = inv.stock > 0 ? Math.max(0, valNuevo / inv.stock) : inv.costoUnitario;
+        }
+    });
+
+    // Eliminar del historial y kardex
+    historial = historial.filter(h => h.noFactura !== noFactura);
+    kardex    = kardex.filter(k => k.documento !== `FACT-${noFactura}`);
+
+    guardarDatos(FILES.historial, historial);
+    guardarDatos(FILES.inventario, inventario);
+    guardarDatos(FILES.kardex, kardex);
+
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
+        accion: 'DELETE_FACTURA', detalle: `Eliminó factura ${noFactura} (${lineas.length} items)`, ip: req.ip });
+    guardarDatos(FILES.auditoria, auditoria);
+
+    res.json({ success: true });
+});
+
+// Eliminar línea individual del historial (mantener compatibilidad)
 app.delete('/inventario/compra/:id', requireAuth, (req, res) => {
     const { id } = req.params;
-    
     const historial = leerDatos(FILES.historial);
     const index = historial.findIndex(h => h.id === id);
-    
-    if (index === -1) {
-        return res.status(404).json({ error: 'Registro no encontrado' });
-    }
-    
-    // Eliminar
+    if (index === -1) return res.status(404).json({ error: 'Registro no encontrado' });
     historial.splice(index, 1);
     guardarDatos(FILES.historial, historial);
-    
-    // Auditoría
-    const auditoria = leerDatos(FILES.auditoria);
-    auditoria.push({
-        id: generarId(),
-        fecha: new Date().toISOString(),
-        usuario: req.session.userId,
-        accion: 'DELETE_COMPRA',
-        detalle: `Eliminó registro de compra ${id}`,
-        ip: req.ip
-    });
-    guardarDatos(FILES.auditoria, auditoria);
-    
     res.json({ success: true });
 });
 
-// T1: Modificar compra del historial + recalcular costo promedio
+// Modificar línea individual (mantener compatibilidad)
 app.put('/inventario/compra/:id', requireAuth, (req, res) => {
     const { id } = req.params;
     const { cantidad, costoUnitario, unidad, proveedor } = req.body;
-
     if (!cantidad || !costoUnitario || cantidad <= 0 || costoUnitario <= 0) {
         return res.status(400).json({ error: 'Cantidad y Costo Unitario deben ser mayores a 0' });
     }
-
     const historial  = leerDatos(FILES.historial);
     const inventario = leerDatos(FILES.inventario);
     const registro   = historial.find(h => h.id === id);
-
     if (!registro) return res.status(404).json({ error: 'Registro no encontrado' });
 
-    const cantAnterior   = parseFloat(registro.cantidad);
-    const costoAnterior  = parseFloat(registro.costoUnitario);
-    const cantNueva      = parseFloat(cantidad);
-    const costoNuevo     = parseFloat(costoUnitario);
+    const cantAnterior = parseFloat(registro.cantidad);
+    const costoAnterior= parseFloat(registro.costoUnitario);
+    const cantNueva    = parseFloat(cantidad);
+    const costoNuevo   = parseFloat(costoUnitario);
 
-    // Actualizar historial
     registro.cantidad      = cantNueva;
     registro.costoUnitario = costoNuevo;
     registro.costoTotal    = cantNueva * costoNuevo;
-    registro.unidad        = unidad  || registro.unidad;
+    registro.unidad        = unidad   || registro.unidad;
     registro.proveedor     = proveedor !== undefined ? proveedor : registro.proveedor;
     registro.updatedAt     = new Date().toISOString();
     guardarDatos(FILES.historial, historial);
 
-    // T3: Recalcular costo promedio del insumo en inventario
     const inv = inventario.find(i => i.codigo === registro.codigo);
     if (inv) {
-        // Revertir compra anterior y aplicar la nueva
-        const stockSinEstaCompra = inv.stock - cantAnterior;
-        const valorSinEstaCompra = (stockSinEstaCompra * inv.costoUnitario) - (cantAnterior * costoAnterior) + (cantAnterior * costoAnterior);
-        // Recalcular desde el historial completo para máxima precisión
-        const historialInsumo = historial.filter(h => h.codigo === registro.codigo);
-        let stockTotal = 0;
-        let valorTotal = 0;
-        historialInsumo.forEach(h => {
-            stockTotal += parseFloat(h.cantidad || 0);
-            valorTotal += parseFloat(h.costoTotal || 0);
-        });
-        inv.stock         = stockSinEstaCompra + cantNueva;
+        const stockSin = inv.stock - cantAnterior;
+        inv.stock         = stockSin + cantNueva;
         inv.costoUnitario = inv.stock > 0
-            ? ((stockSinEstaCompra * inv.costoUnitario) - (cantAnterior * costoAnterior) + (cantNueva * costoNuevo)) / inv.stock
+            ? ((stockSin * inv.costoUnitario) - (cantAnterior * costoAnterior) + (cantNueva * costoNuevo)) / inv.stock
             : costoNuevo;
         guardarDatos(FILES.inventario, inventario);
 
-        // Recalcular recetas que usan este insumo
         const recetas = leerDatos(FILES.recetas);
         recetas.forEach(r => {
             const detalle = JSON.parse(r.detalleReceta);
@@ -609,12 +822,6 @@ app.put('/inventario/compra/:id', requireAuth, (req, res) => {
         });
         guardarDatos(FILES.recetas, recetas);
     }
-
-    const auditoria = leerDatos(FILES.auditoria);
-    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
-        accion: 'UPDATE_COMPRA', detalle: `Modificó compra ${id}: cant ${cantAnterior}→${cantNueva}, costo ${costoAnterior}→${costoNuevo}`, ip: req.ip });
-    guardarDatos(FILES.auditoria, auditoria);
-
     res.json({ success: true });
 });
 
@@ -800,14 +1007,18 @@ app.post('/recetas/actualizar-costos/:plato', requireAuth, (req, res) => {
     });
 });
 
-// T4: Edición completa de receta (resumen + ingredientes)
+// T4: Edición completa de receta con histórico automático
 app.put('/recetas/:id', requireAuth, (req, res) => {
     const { id } = req.params;
     const { plato, ingredientes, precioVenta, margenObjetivo } = req.body;
 
-    const recetas   = leerDatos(FILES.recetas);
+    if (!ingredientes || ingredientes.length === 0) {
+        return res.status(400).json({ error: 'La receta debe tener al menos un ingrediente' });
+    }
+
+    const recetas    = leerDatos(FILES.recetas);
     const inventario = leerDatos(FILES.inventario);
-    const receta    = recetas.find(r => r.id === id);
+    const receta     = recetas.find(r => r.id === id);
 
     if (!receta) return res.status(404).json({ error: 'Receta no encontrada' });
 
@@ -816,25 +1027,25 @@ app.put('/recetas/:id', requireAuth, (req, res) => {
         const inv = inventario.find(i => i.codigo === ing.codigo);
         const costoActual = inv ? inv.costoUnitario : parseFloat(ing.costoUnitario || 0);
         return {
-            Codigo:       ing.codigo,
-            Nombre:       ing.nombre,
-            Unidad:       ing.unidad || '',
-            Cantidad:     parseFloat(ing.cantidad),
+            Codigo:        ing.codigo,
+            Nombre:        ing.nombre,
+            Unidad:        ing.unidad || (inv ? inv.unidad : ''),
+            Cantidad:      parseFloat(ing.cantidad),
             CostoUnitario: costoActual,
-            Costo_U:      costoActual,
-            Subtotal:     parseFloat(ing.cantidad) * costoActual
+            Costo_U:       costoActual,
+            Subtotal:      parseFloat(ing.cantidad) * costoActual
         };
     });
 
-    const costoTotal    = detalleReceta.reduce((s, i) => s + i.Subtotal, 0);
+    const costoAnterior = receta.costoTotalPlato;
+    const costoNuevo    = detalleReceta.reduce((s, i) => s + i.Subtotal, 0);
     const pv            = parseFloat(precioVenta);
-    const valorUtilidad = pv - costoTotal;
+    const valorUtilidad = pv - costoNuevo;
     const margenUt      = pv > 0 ? valorUtilidad / pv : 0;
 
-    const platoAnterior   = receta.plato;
     receta.plato          = (plato || receta.plato).toUpperCase();
     receta.detalleReceta  = JSON.stringify(detalleReceta);
-    receta.costoTotalPlato = costoTotal;
+    receta.costoTotalPlato= costoNuevo;
     receta.precioVenta    = pv;
     receta.valorUtilidad  = valorUtilidad;
     receta.margenUtilidad = margenUt;
@@ -843,19 +1054,28 @@ app.put('/recetas/:id', requireAuth, (req, res) => {
 
     guardarDatos(FILES.recetas, recetas);
 
-    // Historial de precios si cambió el costo
+    // HISTÓRICO AUTOMÁTICO: registrar SIEMPRE que se edita
     const historialPrecios = leerDatos(FILES.historialPrecios);
-    historialPrecios.push({ id: generarId(), plato: receta.plato, fecha: new Date().toISOString(),
-        tipo: 'EDICION_COMPLETA', costoAnterior: receta.costoTotalPlato, costoNuevo: costoTotal,
-        precioVenta: pv, margenNuevo: parseFloat((margenUt*100).toFixed(2)), usuario: req.session.userId });
+    historialPrecios.push({
+        id: generarId(),
+        plato: receta.plato,
+        fecha: new Date().toISOString(),
+        tipo: 'EDICION_COMPLETA',
+        costoAnterior: parseFloat(costoAnterior),
+        costoNuevo,
+        precioVenta: pv,
+        margenNuevo: parseFloat((margenUt * 100).toFixed(2)),
+        ingredientes: ingredientes.length,
+        usuario: req.session.userId
+    });
     guardarDatos(FILES.historialPrecios, historialPrecios);
 
     const auditoria = leerDatos(FILES.auditoria);
     auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
-        accion: 'UPDATE_RECETA', detalle: `Editó receta: ${platoAnterior}`, ip: req.ip });
+        accion: 'UPDATE_RECETA', detalle: `Editó receta ${receta.plato}: costo L.${costoAnterior.toFixed(2)}→L.${costoNuevo.toFixed(2)}`, ip: req.ip });
     guardarDatos(FILES.auditoria, auditoria);
 
-    res.json({ success: true });
+    res.json({ success: true, costoNuevo, margenNuevo: (margenUt * 100).toFixed(1) });
 });
 
 // Eliminar receta
@@ -1080,36 +1300,100 @@ app.post('/produccion/procesar', requireAuth, (req, res) => {
 app.post('/produccion/eliminar/:id', requireAuth, (req, res) => {
     const { id } = req.params;
     
-    const produccion = leerDatos(FILES.produccion);
+    let produccion      = leerDatos(FILES.produccion);
     const index = produccion.findIndex(p => p.id === id);
     
-    if (index === -1) {
-        return res.status(404).json({ error: 'Producción no encontrada' });
-    }
+    if (index === -1) return res.status(404).json({ error: 'Producción no encontrada' });
     
-    const prod = produccion[index];
+    const prod    = produccion[index];
     const detalle = JSON.parse(prod.detalle);
-    const inventario = leerDatos(FILES.inventario);
-    
-    // Revertir stock
+
+    // VALIDACIÓN CRÍTICA: verificar si hay salidas (ventas) vinculadas
+    const movimientos = leerDatos(FILES.movimientosProducto);
+    const salidaVinculada = movimientos.find(m =>
+        m.plato === prod.plato &&
+        m.tipo === 'SALIDA' &&
+        m.origen && m.origen.includes(prod.idOperacion)
+    );
+    // También verificar si hay salidas DESPUÉS de esta producción
+    const fechaProd = new Date(prod.fecha);
+    const salidasPosteriores = movimientos.filter(m =>
+        m.plato === prod.plato &&
+        m.tipo === 'SALIDA' &&
+        new Date(m.fecha) >= fechaProd
+    );
+
+    if (salidaVinculada || salidasPosteriores.length > 0) {
+        return res.status(409).json({
+            error: `No se puede revertir: "${prod.plato}" ya tiene ${salidasPosteriores.length} salida(s)/venta(s) registradas vinculadas. Eliminá primero las salidas.`
+        });
+    }
+
+    // REVERSIÓN ATÓMICA
+    const inventario        = leerDatos(FILES.inventario);
+    const productoTerminado = leerDatos(FILES.productoTerminado);
+    let kardex              = leerDatos(FILES.kardex);
+
+    // 1. Devolver insumos al inventario
     detalle.forEach(ing => {
         const cantidad = parseFloat(ing.Cantidad) * parseInt(prod.cantidad);
         const inv = inventario.find(i => i.codigo === ing.Codigo);
         if (inv) {
+            const stockAnt = inv.stock;
             inv.stock += cantidad;
+            kardex.push({
+                id: generarId(),
+                producto: inv.ingrediente,
+                fecha: new Date().toISOString(),
+                tipo: 'ENTRADA',
+                documento: `REV-${prod.idOperacion}`,
+                cantidad,
+                costoUnitario: inv.costoUnitario,
+                valorTotal: cantidad * inv.costoUnitario,
+                stockAnterior: stockAnt,
+                stockNuevo: inv.stock,
+                observaciones: `Reversión producción ${prod.plato}`
+            });
         }
     });
-    
-    guardarDatos(FILES.inventario, inventario);
-    
-    // Eliminar registro
+
+    // 2. Restar del producto terminado
+    const pt = productoTerminado.find(p => p.plato === prod.plato);
+    if (pt) {
+        const ptAnt = pt.cantidad;
+        pt.cantidad = Math.max(0, pt.cantidad - parseInt(prod.cantidad));
+        movimientos.push({
+            id: generarId(),
+            plato: prod.plato,
+            tipo: 'SALIDA',
+            cantidad: parseInt(prod.cantidad),
+            origen: `Reversión ${prod.idOperacion}`,
+            fecha: new Date().toISOString(),
+            usuarioId: req.session.userId,
+            stockAnterior: ptAnt,
+            stockNuevo: pt.cantidad
+        });
+    }
+
+    // 3. Eliminar el registro de producción
     produccion.splice(index, 1);
+
+    // 4. Guardar todo atomicamente
+    guardarDatos(FILES.inventario, inventario);
+    guardarDatos(FILES.productoTerminado, productoTerminado);
+    guardarDatos(FILES.movimientosProducto, movimientos);
+    guardarDatos(FILES.kardex, kardex);
     guardarDatos(FILES.produccion, produccion);
-    
+
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
+        accion: 'DELETE_PRODUCCION', detalle: `Revirtió producción ${prod.idOperacion} — ${prod.plato} x${prod.cantidad}`, ip: req.ip });
+    guardarDatos(FILES.auditoria, auditoria);
+
     res.json({ success: true });
 });
 
-// T5: Editar producción con recálculo de existencias
+// T5: Editar producción con recálculo atómico y validación de ventas
 app.put('/produccion/:id', requireAuth, (req, res) => {
     const { id } = req.params;
     const { cantidad } = req.body;
@@ -1120,14 +1404,30 @@ app.put('/produccion/:id', requireAuth, (req, res) => {
     const prod = produccion.find(p => p.id === id);
     if (!prod) return res.status(404).json({ error: 'Producción no encontrada' });
 
-    const cantAnterior  = parseInt(prod.cantidad);
-    const diferencia    = cantNueva - cantAnterior; // positivo = más producción, negativo = menos
+    // VALIDACIÓN CRÍTICA: si se reduce, verificar que no haya salidas vinculadas
+    const cantAnterior = parseInt(prod.cantidad);
+    const diferencia   = cantNueva - cantAnterior;
+
+    if (diferencia < 0) {
+        const movimientos = leerDatos(FILES.movimientosProducto);
+        const fechaProd   = new Date(prod.fecha);
+        const salidasPost = movimientos.filter(m =>
+            m.plato === prod.plato && m.tipo === 'SALIDA' && new Date(m.fecha) >= fechaProd
+        );
+        if (salidasPost.length > 0) {
+            return res.status(409).json({
+                error: `No se puede reducir: "${prod.plato}" tiene ${salidasPost.length} salida(s) registradas. Eliminá primero las salidas.`
+            });
+        }
+    }
+
     const detalle       = JSON.parse(prod.detalle);
     const inventario    = leerDatos(FILES.inventario);
     const recetas       = leerDatos(FILES.recetas);
     const receta        = recetas.find(r => r.plato === prod.plato);
+    let kardex          = leerDatos(FILES.kardex);
 
-    // Verificar stock si se aumenta producción
+    // Verificar stock si se aumenta
     if (diferencia > 0) {
         for (const ing of detalle) {
             const necesario = parseFloat(ing.Cantidad) * diferencia;
@@ -1138,43 +1438,53 @@ app.put('/produccion/:id', requireAuth, (req, res) => {
         }
     }
 
-    // Ajustar inventario según diferencia
+    // Ajustar inventario
     detalle.forEach(ing => {
         const ajuste = parseFloat(ing.Cantidad) * diferencia;
         const inv = inventario.find(i => i.codigo === ing.Codigo);
         if (inv) {
             const stockAnt = inv.stock;
-            inv.stock -= ajuste; // si diferencia<0 devuelve stock
-            registrarKardex(inv.ingrediente,
-                diferencia > 0 ? 'SALIDA' : 'ENTRADA',
-                `EDIT-${prod.idOperacion}`,
-                Math.abs(ajuste), inv.costoUnitario, stockAnt, inv.stock,
-                `Edición producción ${prod.plato}`);
+            inv.stock -= ajuste;
+            kardex.push({
+                id: generarId(),
+                producto: inv.ingrediente,
+                fecha: new Date().toISOString(),
+                tipo: diferencia > 0 ? 'SALIDA' : 'ENTRADA',
+                documento: `EDIT-${prod.idOperacion}`,
+                cantidad: Math.abs(ajuste),
+                costoUnitario: inv.costoUnitario,
+                valorTotal: Math.abs(ajuste) * inv.costoUnitario,
+                stockAnterior: stockAnt,
+                stockNuevo: inv.stock,
+                observaciones: `Edición producción ${prod.plato}`
+            });
         }
     });
-    guardarDatos(FILES.inventario, inventario);
 
     // Ajustar producto terminado
     const productoTerminado = leerDatos(FILES.productoTerminado);
     const pt = productoTerminado.find(p => p.plato === prod.plato);
+    const movimientos = leerDatos(FILES.movimientosProducto);
     if (pt) {
         const ptAnt = pt.cantidad;
-        pt.cantidad += diferencia;
-        if (pt.cantidad < 0) pt.cantidad = 0;
-        const movimientos = leerDatos(FILES.movimientosProducto);
+        pt.cantidad = Math.max(0, pt.cantidad + diferencia);
         movimientos.push({ id: generarId(), plato: prod.plato,
             tipo: diferencia > 0 ? 'ENTRADA' : 'SALIDA',
             cantidad: Math.abs(diferencia), origen: `Edición producción ${prod.idOperacion}`,
             fecha: new Date().toISOString(), usuarioId: req.session.userId,
             stockAnterior: ptAnt, stockNuevo: pt.cantidad });
-        guardarDatos(FILES.movimientosProducto, movimientos);
-        guardarDatos(FILES.productoTerminado, productoTerminado);
     }
 
-    // Actualizar registro de producción
-    prod.cantidad       = cantNueva;
+    // Actualizar producción
+    prod.cantidad        = cantNueva;
     prod.costoProduccion = receta ? receta.costoTotalPlato * cantNueva : prod.costoProduccion;
-    prod.updatedAt      = new Date().toISOString();
+    prod.updatedAt       = new Date().toISOString();
+
+    // Guardar todo
+    guardarDatos(FILES.inventario, inventario);
+    guardarDatos(FILES.kardex, kardex);
+    guardarDatos(FILES.productoTerminado, productoTerminado);
+    guardarDatos(FILES.movimientosProducto, movimientos);
     guardarDatos(FILES.produccion, produccion);
 
     const auditoria = leerDatos(FILES.auditoria);
@@ -1307,6 +1617,140 @@ app.get('/api/exportar/kardex/excel', requireAuth, (req, res) => {
 // ==================================================
 // RUTAS DE REPORTES
 // ==================================================
+// ==================================================
+// B3: REPORTES FINANCIEROS — Estado Costo Producción y Ventas
+// ==================================================
+app.get('/api/reportes/financieros', requireAuth, (req, res) => {
+    const { mes } = req.query; // formato: YYYY-MM (ej: 2026-04)
+
+    const historial         = leerDatos(FILES.historial);
+    const produccion        = leerDatos(FILES.produccion);
+    const inventario        = leerDatos(FILES.inventario);
+    const movimientos       = leerDatos(FILES.movimientosProducto);
+    const productoTerminado = leerDatos(FILES.productoTerminado);
+
+    // ── Helpers ──────────────────────────────────────────
+    const esMismoMes = (fechaISO, mesStr) => {
+        if (!mesStr) return true;
+        return fechaISO && fechaISO.startsWith(mesStr);
+    };
+
+    const esAnteriorAlMes = (fechaISO, mesStr) => {
+        if (!mesStr || !fechaISO) return false;
+        return fechaISO.substring(0, 7) < mesStr;
+    };
+
+    // ── Estado de Costo de PRODUCCIÓN ────────────────────
+    // Fórmula: Inv.Inicial + Compras del Mes - Inv.Final = Costo de Producción
+
+    // Inventario Inicial = valor del inventario ANTES del mes (compras anteriores)
+    const comprasAntes = historial.filter(h => esAnteriorAlMes(h.fechaFactura || h.createdAt, mes));
+    let invInicialProd = 0;
+    const stockPorCodigo = {};
+    comprasAntes.forEach(h => {
+        if (!stockPorCodigo[h.codigo]) stockPorCodigo[h.codigo] = { cant: 0, valor: 0 };
+        stockPorCodigo[h.codigo].cant  += parseFloat(h.cantidad || 0);
+        stockPorCodigo[h.codigo].valor += parseFloat(h.costoTotal || 0);
+    });
+    // Restar salidas por producción anteriores al mes
+    const prodAntes = produccion.filter(p => esAnteriorAlMes(p.fecha, mes));
+    prodAntes.forEach(p => {
+        const det = JSON.parse(p.detalle || '[]');
+        det.forEach(ing => {
+            const cant = parseFloat(ing.Cantidad) * parseInt(p.cantidad);
+            const costo= parseFloat(ing.Costo_U || ing.CostoUnitario || 0);
+            if (stockPorCodigo[ing.Codigo]) {
+                stockPorCodigo[ing.Codigo].cant  -= cant;
+                stockPorCodigo[ing.Codigo].valor -= cant * costo;
+            }
+        });
+    });
+    Object.values(stockPorCodigo).forEach(s => {
+        if (s.cant > 0) invInicialProd += Math.max(0, s.valor);
+    });
+
+    // Compras del mes
+    const comprasMes = historial.filter(h => esMismoMes(h.fechaFactura || h.createdAt, mes));
+    const totalComprasMes = comprasMes.reduce((s, h) => s + parseFloat(h.costoTotal || 0), 0);
+    const disponibilidadMes = invInicialProd + totalComprasMes;
+
+    // Inventario Final = valor actual del inventario
+    const invFinalProd = inventario.reduce((s, i) => s + (Math.max(0, i.stock) * i.costoUnitario), 0);
+
+    // Costo de Producción del mes
+    const costoProdMes = disponibilidadMes - invFinalProd;
+
+    // Acumulado anual (todos los meses del año del mes seleccionado)
+    const anio = mes ? mes.substring(0, 4) : new Date().getFullYear().toString();
+    const comprasAnio = historial.filter(h => (h.fechaFactura || h.createdAt || '').startsWith(anio));
+    const totalComprasAnio = comprasAnio.reduce((s,h) => s + parseFloat(h.costoTotal || 0), 0);
+
+    // ── Estado de Costo de VENTAS (PT) ───────────────────
+    // Fórmula: Inv.Inicial PT + Entradas Prod = PT Disponible - Inv.Final PT = Costo Ventas
+
+    // Entradas de producción del mes
+    const entradasPTMes = movimientos
+        .filter(m => m.tipo === 'ENTRADA' && esMismoMes(m.fecha, mes));
+    const totalEntradasPTMes = entradasPTMes.reduce((s, m) => {
+        const rec = produccion.find(p => p.plato === m.plato);
+        const costo = rec ? rec.costoProduccion / parseInt(rec.cantidad || 1) : 0;
+        return s + parseInt(m.cantidad || 0) * costo;
+    }, 0);
+
+    // Inventario Inicial PT (entradas antes del mes - salidas antes del mes)
+    const entradasPTAntes = movimientos.filter(m => m.tipo === 'ENTRADA' && esAnteriorAlMes(m.fecha, mes));
+    const salidasPTAntes  = movimientos.filter(m => m.tipo === 'SALIDA'  && esAnteriorAlMes(m.fecha, mes));
+    const cantPTInicial = entradasPTAntes.reduce((s,m) => s + parseInt(m.cantidad||0), 0)
+                        - salidasPTAntes.reduce((s,m) => s + parseInt(m.cantidad||0), 0);
+
+    // Costo promedio PT por plato
+    const costoPTPorPlato = {};
+    productoTerminado.forEach(p => {
+        costoPTPorPlato[p.plato] = p.costoUnitario || 0;
+    });
+    const invInicialPT = Math.max(0, cantPTInicial) *
+        (Object.values(costoPTPorPlato).reduce((s,c) => s+c, 0) /
+         Math.max(1, Object.keys(costoPTPorPlato).length));
+
+    const ptDisponible = invInicialPT + totalEntradasPTMes;
+
+    // Inventario Final PT (stock actual)
+    const invFinalPT = productoTerminado.reduce((s,p) =>
+        s + (Math.max(0, p.cantidad) * (p.costoUnitario || 0)), 0);
+
+    const costoVentasPT = ptDisponible - invFinalPT;
+
+    // Salidas del mes (ventas)
+    const salidasMes = movimientos.filter(m => m.tipo === 'SALIDA' && esMismoMes(m.fecha, mes));
+    const totalSalidasMes = salidasMes.reduce((s,m) => s + parseInt(m.cantidad||0), 0);
+
+    // Acumulado anual PT
+    const salidasAnio = movimientos.filter(m => m.tipo === 'SALIDA' && (m.fecha||'').startsWith(anio));
+    const totalSalidasAnio = salidasAnio.reduce((s,m) => s + parseInt(m.cantidad||0), 0);
+
+    res.json({
+        periodo: mes || 'Acumulado',
+        anio,
+        estadoCostoProd: {
+            invInicialProd: parseFloat(invInicialProd.toFixed(2)),
+            totalComprasMes: parseFloat(totalComprasMes.toFixed(2)),
+            disponibilidadMes: parseFloat(disponibilidadMes.toFixed(2)),
+            invFinalProd: parseFloat(invFinalProd.toFixed(2)),
+            costoProdMes: parseFloat(costoProdMes.toFixed(2)),
+            totalComprasAnio: parseFloat(totalComprasAnio.toFixed(2))
+        },
+        estadoCostoVentas: {
+            invInicialPT: parseFloat(invInicialPT.toFixed(2)),
+            totalEntradasPTMes: parseFloat(totalEntradasPTMes.toFixed(2)),
+            ptDisponible: parseFloat(ptDisponible.toFixed(2)),
+            invFinalPT: parseFloat(invFinalPT.toFixed(2)),
+            costoVentasPT: parseFloat(costoVentasPT.toFixed(2)),
+            totalSalidasMes,
+            totalSalidasAnio
+        }
+    });
+});
+
 app.get('/reportes', requireAuth, (req, res) => {
     const inventario = leerDatos(FILES.inventario);
     const recetas    = leerDatos(FILES.recetas);
@@ -1336,6 +1780,89 @@ app.get('/reportes', requireAuth, (req, res) => {
         produccion,
         kardex: kardexOrdenado
     });
+});
+
+// ==================================================
+// C1: EXPORTAR CATÁLOGO — Excel (CSV) y PDF
+// ==================================================
+app.get('/api/exportar/catalogo/excel', requireAuth, (req, res) => {
+    const catalogo  = leerDatos(FILES.catalogo).filter(c => c.activo);
+    const inventario= leerDatos(FILES.inventario);
+
+    const cabeceras = ['Código','Nombre/Ingrediente','Unidad','Stock Actual','Costo Promedio (L.)','Valor en Bodega (L.)'];
+    const filas = catalogo.map(art => {
+        const inv = inventario.find(i => i.codigo === art.codigo);
+        const stock   = inv ? parseFloat(inv.stock).toFixed(2)           : '0.00';
+        const costo   = inv ? parseFloat(inv.costoUnitario).toFixed(2)   : '0.00';
+        const valor   = inv ? (inv.stock * inv.costoUnitario).toFixed(2) : '0.00';
+        return [
+            art.codigo,
+            art.ingrediente || art.nombre || '',
+            art.unidad,
+            stock,
+            costo,
+            valor
+        ];
+    });
+
+    const csv = generarCSV(cabeceras, filas);
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename=catalogo_${new Date().toISOString().split('T')[0]}.csv`);
+    res.send(csv);
+});
+
+app.get('/api/exportar/catalogo/pdf', requireAuth, (req, res) => {
+    const catalogo  = leerDatos(FILES.catalogo).filter(c => c.activo);
+    const inventario= leerDatos(FILES.inventario);
+    const fecha     = new Date().toLocaleDateString('es-HN');
+
+    const filas = catalogo.map(art => {
+        const inv   = inventario.find(i => i.codigo === art.codigo);
+        const stock = inv ? parseFloat(inv.stock).toFixed(2)           : '0.00';
+        const costo = inv ? parseFloat(inv.costoUnitario).toFixed(4)   : '0.0000';
+        const valor = inv ? (inv.stock * inv.costoUnitario).toFixed(2) : '0.00';
+        const alerta= inv && inv.stock < (inv.stockMinimo || 0)
+            ? '<span style="color:#ff4b4b;font-weight:bold;">⚠️ BAJO</span>' : '';
+        return `<tr>
+            <td><code style="background:#f0f4ff;padding:0.1rem 0.4rem;border-radius:4px;">${art.codigo}</code></td>
+            <td><strong>${art.ingrediente || art.nombre || ''}</strong></td>
+            <td>${art.unidad}</td>
+            <td style="text-align:right;">${stock} ${alerta}</td>
+            <td style="text-align:right;">L. ${costo}</td>
+            <td style="text-align:right;font-weight:bold;color:#0068c9;">L. ${valor}</td>
+        </tr>`;
+    }).join('');
+
+    const totalValor = catalogo.reduce((s, art) => {
+        const inv = inventario.find(i => i.codigo === art.codigo);
+        return s + (inv ? inv.stock * inv.costoUnitario : 0);
+    }, 0);
+
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8">
+    <title>Catálogo de Artículos — Chef Master Pro</title>
+    <style>
+        body{font-family:Arial,sans-serif;margin:30px;color:#333;font-size:13px}
+        h1{color:#ff4b4b;border-bottom:3px solid #ff4b4b;padding-bottom:8px;margin-bottom:4px}
+        table{width:100%;border-collapse:collapse;margin-top:12px}
+        th{background:#ff4b4b;color:white;padding:8px 10px;text-align:left;font-size:0.88rem}
+        td{padding:6px 10px;border-bottom:1px solid #eee}
+        tfoot td{font-weight:bold;background:#f0f4ff;border-top:2px solid #0068c9}
+        .footer{margin-top:20px;font-size:0.8rem;color:#999;text-align:right}
+        @media print{body{margin:15px}}
+    </style></head><body>
+    <h1>🍽️ CHEF MASTER PRO</h1>
+    <p><strong>Catálogo de Artículos</strong> &nbsp;|&nbsp; Fecha: ${fecha} &nbsp;|&nbsp; Total artículos: ${catalogo.length}</p>
+    <table>
+        <thead><tr><th>Código</th><th>Nombre</th><th>Unidad</th><th>Stock Actual</th><th>Costo Promedio</th><th>Valor Bodega</th></tr></thead>
+        <tbody>${filas}</tbody>
+        <tfoot><tr><td colspan="5" style="text-align:right;">VALOR TOTAL EN BODEGA:</td><td style="text-align:right;">L. ${totalValor.toFixed(2)}</td></tr></tfoot>
+    </table>
+    <div class="footer">Instituto Tecnológico Santo Tomás &nbsp;·&nbsp; Chef Master Pro</div>
+    <script>window.onload = () => window.print();</script>
+    </body></html>`;
+
+    res.setHeader('Content-Type', 'text/html; charset=utf-8');
+    res.send(html);
 });
 
 // Exportar Recetas a CSV
@@ -1690,6 +2217,79 @@ app.post('/producto-terminado/salida', requireAuth, (req, res) => {
     });
     guardarDatos(FILES.auditoria, auditoria);
     
+    res.json({ success: true });
+});
+
+// Editar salida de producto terminado
+app.put('/producto-terminado/salida/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+    const { cantidad, motivo } = req.body;
+    const cantNueva = parseInt(cantidad);
+    if (!cantNueva || cantNueva < 1) return res.status(400).json({ error: 'Cantidad inválida' });
+
+    const movimientos       = leerDatos(FILES.movimientosProducto);
+    const productoTerminado = leerDatos(FILES.productoTerminado);
+
+    const mov = movimientos.find(m => m.id === id && m.tipo === 'SALIDA');
+    if (!mov) return res.status(404).json({ error: 'Salida no encontrada' });
+
+    const cantAnterior = parseInt(mov.cantidad);
+    const diferencia   = cantNueva - cantAnterior; // positivo = más salida, negativo = menos
+
+    const pt = productoTerminado.find(p => p.plato === mov.plato);
+    if (!pt) return res.status(404).json({ error: 'Producto terminado no encontrado' });
+
+    // Verificar que hay stock suficiente si se aumenta la salida
+    if (diferencia > 0 && pt.cantidad < diferencia) {
+        return res.status(400).json({ error: `Stock insuficiente. Solo hay ${pt.cantidad} unidades disponibles.` });
+    }
+
+    const ptAnt = pt.cantidad;
+    pt.cantidad -= diferencia; // si diferencia < 0 devuelve stock
+    pt.updatedAt = new Date().toISOString();
+
+    mov.cantidad  = cantNueva;
+    mov.motivo    = motivo || mov.motivo;
+    mov.stockNuevo= pt.cantidad;
+
+    guardarDatos(FILES.movimientosProducto, movimientos);
+    guardarDatos(FILES.productoTerminado, productoTerminado);
+
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
+        accion: 'UPDATE_SALIDA_PT', detalle: `${mov.plato}: ${cantAnterior}→${cantNueva} uds`, ip: req.ip });
+    guardarDatos(FILES.auditoria, auditoria);
+
+    res.json({ success: true });
+});
+
+// Eliminar salida de producto terminado (restaura stock)
+app.delete('/producto-terminado/salida/:id', requireAuth, (req, res) => {
+    const { id } = req.params;
+
+    const movimientos       = leerDatos(FILES.movimientosProducto);
+    const productoTerminado = leerDatos(FILES.productoTerminado);
+
+    const idx = movimientos.findIndex(m => m.id === id && m.tipo === 'SALIDA');
+    if (idx === -1) return res.status(404).json({ error: 'Salida no encontrada' });
+
+    const mov = movimientos[idx];
+    const pt  = productoTerminado.find(p => p.plato === mov.plato);
+
+    if (pt) {
+        pt.cantidad += parseInt(mov.cantidad);
+        pt.updatedAt = new Date().toISOString();
+        guardarDatos(FILES.productoTerminado, productoTerminado);
+    }
+
+    movimientos.splice(idx, 1);
+    guardarDatos(FILES.movimientosProducto, movimientos);
+
+    const auditoria = leerDatos(FILES.auditoria);
+    auditoria.push({ id: generarId(), fecha: new Date().toISOString(), usuario: req.session.userId,
+        accion: 'DELETE_SALIDA_PT', detalle: `Eliminó salida de ${mov.plato} x${mov.cantidad}`, ip: req.ip });
+    guardarDatos(FILES.auditoria, auditoria);
+
     res.json({ success: true });
 });
 

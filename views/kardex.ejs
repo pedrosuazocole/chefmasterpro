@@ -113,13 +113,21 @@
             <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
                 <h3>Movimientos de Kardex</h3>
                 <span id="contadorMovimientos" style="background:#f0f4ff;padding:0.3rem 0.8rem;border-radius:12px;font-size:0.9rem;">
-                    <%= kardex.length %> movimientos
+                    Aplicá un filtro para ver movimientos
                 </span>
             </div>
             <div class="card-body">
+                <!-- Mensaje inicial -->
+                <div id="kardexMensajeInicial" style="text-align:center;padding:3rem;color:#999;">
+                    <div style="font-size:3rem;">🔍</div>
+                    <h4>Seleccioná al menos un filtro</h4>
+                    <p style="font-size:0.9rem;">Usá los filtros de arriba para consultar los movimientos del Kardex.</p>
+                </div>
+
                 <% if (kardex && kardex.length > 0) { %>
-                <div class="table-container">
-                    <table class="table" id="tablaKardex" style="font-size:0.9rem;">
+                <div id="kardexContenido" style="display:none;">
+                    <div class="table-container">
+                        <table class="table" id="tablaKardex" style="font-size:0.9rem;">
                         <thead>
                             <tr>
                                 <th>Fecha y Hora</th>
@@ -210,17 +218,14 @@
                     </table>
                 </div>
                 <p class="text-muted" style="margin-top:0.75rem;font-size:0.85rem;text-align:right;">
-                    Mostrando todos los movimientos. Total: <%= kardex.length %>.
+                    Total: <%= kardex.length %> movimientos.
                 </p>
+                </div><!-- /kardexContenido -->
                 <% } else { %>
                 <div style="text-align:center;padding:4rem;color:#999;">
                     <div style="font-size:4rem;">📋</div>
                     <h3>No hay movimientos en el Kardex</h3>
-                    <p>Los movimientos se registran automáticamente al:</p>
-                    <ul style="display:inline-block;text-align:left;margin-top:0.5rem;">
-                        <li>📥 Registrar una compra en Inventario</li>
-                        <li>📤 Procesar una producción</li>
-                    </ul>
+                    <p>Los movimientos se registran automáticamente al registrar compras o procesar producción.</p>
                 </div>
                 <% } %>
             </div>
@@ -230,36 +235,59 @@
     <script src="/js/main.js"></script>
     <script src="/js/exportar.js"></script>
     <script>
+        function hayFiltroActivo() {
+            return document.getElementById('filtroProducto').value     !== '' ||
+                   document.getElementById('filtroTipo').value         !== '' ||
+                   document.getElementById('buscarKardex').value.trim()!== '' ||
+                   document.getElementById('kardexFechaInicio').value  !== '' ||
+                   document.getElementById('kardexFechaFinal').value   !== '';
+        }
+
         function filtrarKardex() {
             const producto    = document.getElementById('filtroProducto').value;
             const tipo        = document.getElementById('filtroTipo').value;
             const busqueda    = document.getElementById('buscarKardex').value.toLowerCase().trim();
             const fechaInicio = document.getElementById('kardexFechaInicio').value;
             const fechaFinal  = document.getElementById('kardexFechaFinal').value;
-            const filas       = document.querySelectorAll('#kardexBody tr');
+
+            const msgInicial  = document.getElementById('kardexMensajeInicial');
+            const contenido   = document.getElementById('kardexContenido');
+            const counter     = document.getElementById('contadorMovimientos');
+
+            // Carga bajo demanda: solo muestra si hay al menos un filtro
+            if (!hayFiltroActivo()) {
+                if (msgInicial) msgInicial.style.display = 'block';
+                if (contenido)  contenido.style.display  = 'none';
+                if (counter)    counter.textContent = 'Aplicá un filtro para ver movimientos';
+                return;
+            }
+
+            if (msgInicial) msgInicial.style.display = 'none';
+            if (contenido)  contenido.style.display  = 'block';
+
+            const filas = document.querySelectorAll('#kardexBody tr');
             let visibles = 0;
-            
+
             filas.forEach(fila => {
                 const dprod = fila.dataset.producto || '';
                 const dtipo = fila.dataset.tipo     || '';
                 const dtxt  = fila.dataset.texto    || '';
-                const dfech = fila.dataset.fecha    || ''; // YYYY-MM-DD
+                const dfech = fila.dataset.fecha    || '';
 
-                const okProd  = !producto    || dprod === producto;
-                const okTipo  = !tipo        || dtipo === tipo;
-                const okBusc  = !busqueda    || dtxt.includes(busqueda);
-                const okFecI  = !fechaInicio || dfech >= fechaInicio;
-                const okFecF  = !fechaFinal  || dfech <= fechaFinal;
-                
+                const okProd = !producto    || dprod === producto;
+                const okTipo = !tipo        || dtipo === tipo;
+                const okBusc = !busqueda    || dtxt.includes(busqueda);
+                const okFecI = !fechaInicio || dfech >= fechaInicio;
+                const okFecF = !fechaFinal  || dfech <= fechaFinal;
+
                 const mostrar = okProd && okTipo && okBusc && okFecI && okFecF;
                 fila.style.display = mostrar ? '' : 'none';
                 if (mostrar) visibles++;
             });
-            
-            const counter = document.getElementById('contadorMovimientos');
-            if (counter) counter.textContent = `${visibles} movimientos`;
+
+            if (counter) counter.textContent = `${visibles} movimiento(s)`;
         }
-        
+
         function limpiarFiltros() {
             document.getElementById('filtroProducto').value     = '';
             document.getElementById('filtroTipo').value         = '';
