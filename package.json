@@ -7,25 +7,19 @@
   "scripts": {
     "start": "node server.js"
   },
-  "keywords": [
-    "cocina",
-    "restaurant",
-    "inventory",
-    "recipes",
-    "kardex"
-  ],
+  "keywords": ["cocina", "restaurant", "inventory", "recipes", "kardex"],
   "author": "Instituto Tecnológico Santo Tomás",
   "license": "MIT",
   "engines": {
-    "node": ">=14.0.0",
-    "npm": ">=6.0.0"
+    "node": ">=18.0.0",
+    "npm": ">=8.0.0"
   },
   "dependencies": {
     "bcryptjs": "2.4.3",
     "dotenv": "16.4.5",
     "ejs": "3.1.10",
-    "express": "^4.22.1",
+    "express": "4.18.2",
     "express-rate-limit": "6.11.2",
-    "express-session": "^1.19.0"
+    "express-session": "1.17.3"
   }
 }
