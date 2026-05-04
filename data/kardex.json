@@ -1,1 +1,106 @@
-[]
+[
+  {
+    "id": "mordk3zvg9xvspubghb",
+    "producto": "ZAMBOS PICANTE",
+    "fecha": "2026-05-04T15:49:06.235Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-001-2026",
+    "cantidad": 15,
+    "costoUnitario": 9.3,
+    "valorTotal": 139.5,
+    "stockAnterior": 0,
+    "stockNuevo": 15,
+    "observaciones": "Compra - ALIMENTOS DE H0NDURAS"
+  },
+  {
+    "id": "mordk3zvioctz3q38t",
+    "producto": "CULANTRO FINO",
+    "fecha": "2026-05-04T15:49:06.235Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-001-2026",
+    "cantidad": 15,
+    "costoUnitario": 5,
+    "valorTotal": 75,
+    "stockAnterior": 0,
+    "stockNuevo": 15,
+    "observaciones": "Compra - ALIMENTOS DE H0NDURAS"
+  },
+  {
+    "id": "mordk3zwgjaqgsn10zi",
+    "producto": "REPOLLO",
+    "fecha": "2026-05-04T15:49:06.236Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-001-2026",
+    "cantidad": 10,
+    "costoUnitario": 15,
+    "valorTotal": 150,
+    "stockAnterior": 0,
+    "stockNuevo": 10,
+    "observaciones": "Compra - ALIMENTOS DE H0NDURAS"
+  },
+  {
+    "id": "mordk3zw3d10ag7zb8t",
+    "producto": "CARNE MOLIDA",
+    "fecha": "2026-05-04T15:49:06.236Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-001-2026",
+    "cantidad": 5,
+    "costoUnitario": 110,
+    "valorTotal": 550,
+    "stockAnterior": 0,
+    "stockNuevo": 5,
+    "observaciones": "Compra - ALIMENTOS DE H0NDURAS"
+  },
+  {
+    "id": "mordk3zx8jap9bxk7ry",
+    "producto": "TOMATE",
+    "fecha": "2026-05-04T15:49:06.237Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-001-2026",
+    "cantidad": 10,
+    "costoUnitario": 19.99,
+    "valorTotal": 199.89999999999998,
+    "stockAnterior": 0,
+    "stockNuevo": 10,
+    "observaciones": "Compra - ALIMENTOS DE H0NDURAS"
+  },
+  {
+    "id": "mordk3zx99cdxwhpsgf",
+    "producto": "CEBOLLA ROJA",
+    "fecha": "2026-05-04T15:49:06.237Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-001-2026",
+    "cantidad": 5,
+    "costoUnitario": 35,
+    "valorTotal": 175,
+    "stockAnterior": 0,
+    "stockNuevo": 5,
+    "observaciones": "Compra - ALIMENTOS DE H0NDURAS"
+  },
+  {
+    "id": "more4lyonf9h150fvk",
+    "producto": "PAPAS",
+    "fecha": "2026-05-04T16:05:02.640Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-002-2026",
+    "cantidad": 5,
+    "costoUnitario": 25,
+    "valorTotal": 125,
+    "stockAnterior": 0,
+    "stockNuevo": 5,
+    "observaciones": "Compra - ALIMENTOS DE H0NDURAS"
+  },
+  {
+    "id": "more4lyo1sw4al5dfyl",
+    "producto": "ACEITE",
+    "fecha": "2026-05-04T16:05:02.640Z",
+    "tipo": "ENTRADA",
+    "documento": "FACT-002-2026",
+    "cantidad": 10,
+    "costoUnitario": 65,
+    "valorTotal": 650,
+    "stockAnterior": 0,
+    "stockNuevo": 10,
+    "observaciones": "Compra - ALIMENTOS DE H0NDURAS"
+  }
+]

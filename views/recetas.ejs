@@ -122,7 +122,7 @@
                              data-receta-id="<%= r.id %>"
                              data-plato="<%= r.plato %>"
                              data-precio="<%= r.precioVenta %>"
-                             data-margen="<%= r.alerta.margenObjetivo %>">
+                             data-margen="<%= Math.round((r.margenObjetivo || 0.7) * 100) %>">
                             <!-- Encabezado receta -->
                             <div style="background:<%= colorFondo %>;padding:1rem 1.25rem;display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:0.75rem;">
                                 <div>
@@ -569,9 +569,7 @@
         }
 
         // Cerrar modal con click afuera
-        document.getElementById('modalHistorial').addEventListener('click', function(e) {
-            if (e.target === this) cerrarModal();
-        });
+        // (asignado en DOMContentLoaded porque el modal está después del script)
 
         // ============================================================
         // EDITAR RECETA COMPLETA
@@ -650,7 +648,12 @@
                             style="background:#ff4b4b;color:white;border:none;border-radius:5px;padding:0.2rem 0.5rem;cursor:pointer;font-size:0.82rem;">🗑️</button>
                 </td>`;
             tbody.appendChild(tr);
-            if (item) actualizarFilaIng(rid);
+
+            // FIX: forzar actualización de unidad/costo/total ahora que la fila está en el DOM
+            // El 'selected' en el HTML no dispara onchange automáticamente
+            if (item && item.codigo) {
+                actualizarFilaIng(rid);
+            }
         }
 
         function actualizarFilaIng(rid) {
@@ -744,8 +747,17 @@
             }
         }
 
-        document.getElementById('modalEditarReceta').addEventListener('click', function(e) {
-            if (e.target === this) cerrarModalEditarReceta();
+        document.addEventListener('DOMContentLoaded', function() {
+            // Cerrar modales al hacer click fuera — se asigna aquí porque
+            // los modales están DESPUÉS de este bloque script en el HTML
+            const mH = document.getElementById('modalHistorial');
+            if (mH) mH.addEventListener('click', function(e) {
+                if (e.target === this) cerrarModal();
+            });
+            const mE = document.getElementById('modalEditarReceta');
+            if (mE) mE.addEventListener('click', function(e) {
+                if (e.target === this) cerrarModalEditarReceta();
+            });
         });
     </script>
 

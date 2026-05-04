@@ -3,8 +3,64 @@
     "codigo": "001",
     "ingrediente": "ZAMBOS PICANTE",
     "unidad": "Unidad",
-    "stock": 0,
-    "costoUnitario": 0,
+    "stock": 15,
+    "costoUnitario": 9.3,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "002",
+    "ingrediente": "CARNE MOLIDA",
+    "unidad": "Libra",
+    "stock": 5,
+    "costoUnitario": 110,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "003",
+    "ingrediente": "ACEITE",
+    "unidad": "Litro",
+    "stock": 10,
+    "costoUnitario": 65,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "004",
+    "ingrediente": "REPOLLO",
+    "unidad": "Libra",
+    "stock": 10,
+    "costoUnitario": 15,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "005",
+    "ingrediente": "PAPAS",
+    "unidad": "Libra",
+    "stock": 5,
+    "costoUnitario": 25,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "006",
+    "ingrediente": "TOMATE",
+    "unidad": "Libra",
+    "stock": 10,
+    "costoUnitario": 19.99,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "007",
+    "ingrediente": "CULANTRO FINO",
+    "unidad": "Unidad",
+    "stock": 15,
+    "costoUnitario": 5,
+    "stockMinimo": 5
+  },
+  {
+    "codigo": "008",
+    "ingrediente": "CEBOLLA ROJA",
+    "unidad": "Unidad",
+    "stock": 5,
+    "costoUnitario": 35,
     "stockMinimo": 5
   }
 ]

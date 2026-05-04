@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "id": "more7z42v6rh9nurwtf",
+    "plato": "ZAMBOS RELLENO GRANDE",
+    "detalleReceta": "[{\"Codigo\":\"001\",\"Nombre\":\"ZAMBOS PICANTE\",\"Cantidad\":1,\"Costo_U\":9.3,\"Subtotal\":9.3},{\"Codigo\":\"002\",\"Nombre\":\"CARNE MOLIDA\",\"Cantidad\":0.03,\"Costo_U\":110,\"Subtotal\":3.3},{\"Codigo\":\"004\",\"Nombre\":\"REPOLLO\",\"Cantidad\":0.03,\"Costo_U\":15,\"Subtotal\":0.44999999999999996},{\"Codigo\":\"007\",\"Nombre\":\"CULANTRO FINO\",\"Cantidad\":0.03,\"Costo_U\":5,\"Subtotal\":0.15},{\"Codigo\":\"006\",\"Nombre\":\"TOMATE\",\"Cantidad\":0.03,\"Costo_U\":19.99,\"Subtotal\":0.5996999999999999},{\"Codigo\":\"008\",\"Nombre\":\"CEBOLLA ROJA\",\"Cantidad\":0.03,\"Costo_U\":35,\"Subtotal\":1.05}]",
+    "costoTotalPlato": 14.849700000000002,
+    "precioVenta": 84,
+    "valorUtilidad": 69.1503,
+    "margenUtilidad": 0.8232178571428571,
+    "margenObjetivo": 70,
+    "activo": true,
+    "createdAt": "2026-05-04T16:07:39.650Z",
+    "createdBy": "1"
+  }
+]

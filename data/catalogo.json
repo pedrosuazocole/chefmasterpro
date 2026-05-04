@@ -1,11 +1,74 @@
 [
   {
-    "id": 1777476579791,
+    "id": 1777908431164,
     "codigo": "001",
     "nombre": "ZAMBOS PICANTE",
     "ingrediente": "ZAMBOS PICANTE",
     "unidad": "Unidad",
     "activo": true,
-    "createdAt": "2026-04-29T15:29:39.791Z"
+    "createdAt": "2026-05-04T15:27:11.164Z"
+  },
+  {
+    "id": 1777908469811,
+    "codigo": "002",
+    "nombre": "CARNE MOLIDA",
+    "ingrediente": "CARNE MOLIDA",
+    "unidad": "Libra",
+    "activo": true,
+    "createdAt": "2026-05-04T15:27:49.811Z"
+  },
+  {
+    "id": 1777908482741,
+    "codigo": "003",
+    "nombre": "ACEITE",
+    "ingrediente": "ACEITE",
+    "unidad": "Litro",
+    "activo": true,
+    "createdAt": "2026-05-04T15:28:02.741Z"
+  },
+  {
+    "id": 1777908494045,
+    "codigo": "004",
+    "nombre": "REPOLLO",
+    "ingrediente": "REPOLLO",
+    "unidad": "Libra",
+    "activo": true,
+    "createdAt": "2026-05-04T15:28:14.045Z"
+  },
+  {
+    "id": 1777908509452,
+    "codigo": "005",
+    "nombre": "PAPAS",
+    "ingrediente": "PAPAS",
+    "unidad": "Libra",
+    "activo": true,
+    "createdAt": "2026-05-04T15:28:29.452Z"
+  },
+  {
+    "id": 1777908529188,
+    "codigo": "006",
+    "nombre": "TOMATE",
+    "ingrediente": "TOMATE",
+    "unidad": "Libra",
+    "activo": true,
+    "createdAt": "2026-05-04T15:28:49.188Z"
+  },
+  {
+    "id": 1777908541048,
+    "codigo": "007",
+    "nombre": "CULANTRO FINO",
+    "ingrediente": "CULANTRO FINO",
+    "unidad": "Unidad",
+    "activo": true,
+    "createdAt": "2026-05-04T15:29:01.048Z"
+  },
+  {
+    "id": 1777908552043,
+    "codigo": "008",
+    "nombre": "CEBOLLA ROJA",
+    "ingrediente": "CEBOLLA ROJA",
+    "unidad": "Unidad",
+    "activo": true,
+    "createdAt": "2026-05-04T15:29:12.043Z"
   }
 ]
