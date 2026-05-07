@@ -126,7 +126,8 @@
                                         <th>ID Operación</th>
                                         <th>Plato</th>
                                         <th>Cantidad</th>
-                                        <th>Costo Producción</th>
+                                        <th>Costo Total</th>
+                                        <th>Costo Unitario</th>
                                         <th>Acciones</th>
                                     </tr>
                                 </thead>
@@ -149,12 +150,10 @@
                                         <td style="font-weight:bold;color:#21c354;">
                                             L. <%= parseFloat(p.costoProduccion||0).toFixed(2) %>
                                         </td>
+                                        <td style="color:#0068c9;font-weight:bold;">
+                                            L. <%= (parseFloat(p.costoProduccion||0) / Math.max(1, parseInt(p.cantidad||1))).toFixed(2) %>
+                                        </td>
                                         <td style="white-space:nowrap;">
-                                            <button class="btn btn-sm"
-                                                    onclick="abrirEditarProduccion('<%= p.id %>','<%= p.plato %>',<%= p.cantidad %>)"
-                                                    style="background:#0068c9;color:white;padding:0.3rem 0.6rem;border-radius:6px;margin-right:0.25rem;">
-                                                ✏️ Editar
-                                            </button>
                                             <button class="btn btn-sm"
                                                     onclick="eliminarProduccion('<%= p.id %>')"
                                                     style="background:#ff4b4b;color:white;padding:0.3rem 0.6rem;border-radius:6px;">
