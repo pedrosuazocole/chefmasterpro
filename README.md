@@ -1,4 +1,4 @@
-# 🍽️ CHEF MASTER PRO v1.5
+# 🍽️ CHEF MASTER PRO v2.1
 
 **Sistema Integral de Gestión de Cocina Profesional**
 
@@ -6,7 +6,7 @@
 
 ---
 
-## 🚀 NOVEDADES v1.5
+## 🚀 NOVEDADES v2.1
 
 ### ⭐ Tres Mejoras Críticas Implementadas
 
@@ -65,7 +65,7 @@ Contraseña: admin123
 - 📈 Reportes y Análisis
 - 📊 **Exportaciones** ⭐ NUEVO
 
-### 🎯 Funcionalidades v1.5
+### 🎯 Funcionalidades v2.1
 - ✅ Alertas inteligentes de margen
 - ✅ Detección automática de cambios de precio
 - ✅ Kardex con entradas/salidas automáticas
@@ -204,7 +204,7 @@ http://localhost:3000
 
 ## 🏆 VERSIÓN
 
-**v1.5.0 Professional Edition**
+**v2.1.1 Professional Edition**
 
 Desarrollado para:  
 **Instituto Tecnológico Santo Tomás**  
@@ -216,7 +216,7 @@ Fecha: Abril 2026
 
 ## 📞 SOPORTE
 
-1. Revisar `MANUAL_V1.5.md`
+1. Revisar `MANUAL_V2.1.md`
 2. Revisar comentarios en código
 3. Contactar administrador del sistema
 
