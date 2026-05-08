@@ -239,6 +239,6 @@ DELETE /producto-terminado/:id
 
 ---
 
-**CHEF MASTER PRO v1.5.4**  
+**CHEF MASTER PRO v2.1.1**  
 **Modificar/Eliminar Implementado** ✅  
-**Abril 2026**
+**Mayo 2026**
